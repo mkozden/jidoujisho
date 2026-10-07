@@ -29,7 +29,7 @@ with **Enable e-ink mode**; the app restarts. The code is in
 | 3 | Black-and-white theme | Done, with light and dark variants. Search bars and history tiles are solid. |
 | 4 | Opaque dictionary pop-up | Done: opaque, outlined, no tints |
 | 4a | "Already in Anki or stash" state | Done: the quick-action button is inverted (black with a white icon) instead of red |
-| 5 | Static loading indicator | Done: a static hourglass image replaces the spinners and indeterminate progress bars |
+| 5 | Static loading indicator | Done: a static hourglass image replaces the spinners and indeterminate progress bars, and the jumping dots become a static "..." |
 | 6 | Reader page turns (ttu) | Done. See *ttu text colour* below. CSS transitions and animations are also off in the reader. |
 | 7 | Tap zones | Not planned: ttu swiping is enough, and Mokuro already has tap zones |
 | 8 | Hardware page-turn keys | Not planned: the target device has no extra buttons |
@@ -44,8 +44,11 @@ with **Enable e-ink mode**; the app restarts. The code is in
 selection colours, and both appear in ttu's own theme picker. The first time
 the reader opens in e-ink mode, it switches to the matching one: the dark
 variant if a dark ttu theme was selected. After that the user's choice is left
-alone. The app's red lookup highlight is also overridden with an inverted one.
-This replaces the CSS override proposed in section 6.
+alone. This is tracked per reader origin in the reader's own localStorage, so
+the Japanese and English readers each switch once. The app's red lookup
+highlight is replaced with an inversion of the actual page background, which
+stays correct when the theme changes. This replaces the CSS override proposed
+in section 6.
 
 Mokuro-specific changes are out of scope for now.
 

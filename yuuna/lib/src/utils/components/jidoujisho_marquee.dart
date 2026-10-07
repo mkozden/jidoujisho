@@ -416,6 +416,7 @@ class JidoujishoMarquee extends StatelessWidget {
           child: Text(
             text,
             style: style,
+            textScaleFactor: textScaleFactor,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             textAlign: TextAlign.left,

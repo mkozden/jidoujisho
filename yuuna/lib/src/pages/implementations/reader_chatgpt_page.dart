@@ -9,7 +9,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_gpt_tokenizer/flutter_gpt_tokenizer.dart';
 import 'package:fluttertoast/fluttertoast.dart';
-import 'package:progress_indicators/progress_indicators.dart';
 import 'package:remove_emoji/remove_emoji.dart';
 import 'package:spaces/spaces.dart';
 import 'package:yuuna/creator.dart';
@@ -516,7 +515,7 @@ class _ReaderChatgptPageState extends BaseSourcePageState<ReaderChatgptPage> {
         child: Padding(
           padding: Spacing.of(context).insets.all.normal,
           child: isLoading && text.isEmpty
-              ? JumpingDotsProgressIndicator(
+              ? JidoujishoJumpingDots(
                   fontSize: theme.textTheme.bodyMedium!.fontSize!,
                   color: Theme.of(context).appBarTheme.foregroundColor!,
                 )
@@ -533,7 +532,7 @@ class _ReaderChatgptPageState extends BaseSourcePageState<ReaderChatgptPage> {
                             WidgetSpan(
                               child: SizedBox(
                                 width: theme.textTheme.bodyMedium!.fontSize,
-                                child: JumpingDotsProgressIndicator(
+                                child: JidoujishoJumpingDots(
                                   fontSize:
                                       theme.textTheme.bodyMedium!.fontSize!,
                                   color: Theme.of(context)

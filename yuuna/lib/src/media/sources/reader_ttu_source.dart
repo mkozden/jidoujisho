@@ -118,24 +118,21 @@ class ReaderTtuSource extends ReaderMediaSource {
   /// Name of the dark variant of [einkThemeName].
   static const String einkDarkThemeName = 'E-ink (dark)';
 
-  /// Whether the reader has already been switched to an e-ink theme once.
-  /// After that, the user's theme choice in the reader is left alone.
-  bool get einkThemeApplied =>
-      getPreference<bool>(key: 'eink_theme_applied', defaultValue: false);
-
-  /// Records that the reader has been switched to an e-ink theme.
-  Future<void> setEinkThemeApplied() async {
-    await setPreference<bool>(key: 'eink_theme_applied', value: true);
+  /// Script run before every page load of the reader in e-ink mode. It adds
+  /// pure black-and-white themes to the reader's own custom themes (its
+  /// default light theme draws text at 87% opacity, which renders grey on
+  /// e-ink) and switches to them once per reader origin, after which the
+  /// user's theme choice in the reader is kept. It also turns off CSS
+  /// animations and makes text selection invert the page colours instead of
+  /// the red highlight, which renders grey.
+  String get einkUserScript => """
+(function() {
+  if (location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
+    return;
   }
 
-  /// Script run before the reader loads in e-ink mode. It adds pure
-  /// black-and-white themes to the reader's own custom themes (its default
-  /// light theme draws text at 87% opacity, which renders grey on e-ink),
-  /// optionally switches to them, inverts text selection and turns off CSS
-  /// animations.
-  String einkUserScript({required bool applyTheme}) {
-    return """
-(function() {
+  var lightName = '$einkThemeName';
+  var darkName = '$einkDarkThemeName';
   var light = {
     fontColor: 'rgba(0, 0, 0, 1)',
     backgroundColor: 'rgba(255, 255, 255, 1)',
@@ -154,33 +151,63 @@ class ReaderTtuSource extends ReaderMediaSource {
     hintFuriganaShadowColor: 'rgba(255, 255, 255, 0.3)',
     tooltipTextFontColor: 'rgba(255, 255, 255, 1)'
   };
-  var darkThemes = ['gray-theme', 'dark-theme', 'black-theme', '$einkDarkThemeName'];
+  var darkThemes = ['gray-theme', 'dark-theme', 'black-theme', darkName];
 
   try {
     var customThemes = JSON.parse(localStorage.getItem('customThemes') || '{}');
-    customThemes['$einkThemeName'] = light;
-    customThemes['$einkDarkThemeName'] = dark;
-    localStorage.setItem('customThemes', JSON.stringify(customThemes));
+    if (customThemes && typeof customThemes === 'object' && !Array.isArray(customThemes)) {
+      if (!customThemes[lightName] || !customThemes[darkName]) {
+        customThemes[lightName] = customThemes[lightName] || light;
+        customThemes[darkName] = customThemes[darkName] || dark;
+        localStorage.setItem('customThemes', JSON.stringify(customThemes));
+      }
 
-    if ($applyTheme) {
-      var current = localStorage.getItem('theme') || 'light-theme';
-      localStorage.setItem('theme',
-        darkThemes.indexOf(current) >= 0 ? '$einkDarkThemeName' : '$einkThemeName');
+      if (!localStorage.getItem('jidoujishoEinkThemeApplied')) {
+        var current = localStorage.getItem('theme') || 'light-theme';
+        localStorage.setItem('theme',
+          darkThemes.indexOf(current) >= 0 ? darkName : lightName);
+        localStorage.setItem('jidoujishoEinkThemeApplied', 'true');
+      }
     }
   } catch (e) {
     console.log(e);
   }
 
-  var isDark = darkThemes.indexOf(localStorage.getItem('theme')) >= 0;
-  var css = '*, *::before, *::after {' +
-      ' transition: none !important; animation: none !important;' +
-      ' scroll-behavior: auto !important; }' +
-      ' ::selection { color: ' + (isDark ? '#000' : '#fff') + ' !important;' +
-      ' background: ' + (isDark ? '#fff' : '#000') + ' !important; }';
+  var baseCss = '*, *::before, *::after { transition: none !important;' +
+      ' animation: none !important; scroll-behavior: auto !important; }';
+  var style = document.createElement('style');
+  style.textContent = baseCss;
+
+  // The page background is painted by an inner element, so walk up from the
+  // touched or selected node to the first opaque background.
+  function updateSelectionColors(node) {
+    var element = node && node.nodeType === 1 ? node : node && node.parentElement;
+    var color = [255, 255, 255];
+    for (; element; element = element.parentElement) {
+      var parts = getComputedStyle(element).backgroundColor.match(/[0-9.]+/g);
+      if (parts && (parts.length < 4 || Number(parts[3]) > 0)) {
+        color = parts.map(Number);
+        break;
+      }
+    }
+
+    var isDark = 0.299 * color[0] + 0.587 * color[1] + 0.114 * color[2] < 128;
+    var css = baseCss + ' ::selection { color: ' + (isDark ? '#000' : '#fff') +
+        ' !important; background: ' + (isDark ? '#fff' : '#000') + ' !important; }';
+    if (style.textContent !== css) {
+      style.textContent = css;
+    }
+  }
+
+  document.addEventListener('pointerdown', function(e) {
+    updateSelectionColors(e.target);
+  }, true);
+  document.addEventListener('selectionchange', function() {
+    var selection = document.getSelection();
+    updateSelectionColors(selection && selection.anchorNode);
+  });
 
   function addStyle() {
-    var style = document.createElement('style');
-    style.textContent = css;
     (document.head || document.documentElement).appendChild(style);
   }
 
@@ -191,7 +218,6 @@ class ReaderTtuSource extends ReaderMediaSource {
   }
 })();
 """;
-  }
 
   /// For serving the reader assets locally.
   Future<LocalWebAssetsServer> serveLocalAssets(Language language) async {

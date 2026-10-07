@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:progress_indicators/progress_indicators.dart';
 import 'package:spaces/spaces.dart';
-import 'package:yuuna/i18n/strings.g.dart';
 import 'package:yuuna/media.dart';
 import 'package:yuuna/pages.dart';
+import 'package:yuuna/utils.dart';
 
 /// Used to indicate which captions are included on metadata
 /// for a YouTube video.
@@ -327,7 +326,7 @@ class _ClosedCaptionsIndicatorState
         if (loading)
           SizedBox(
             width: 10,
-            child: JumpingDotsProgressIndicator(
+            child: JidoujishoJumpingDots(
               color: color,
             ),
           ),

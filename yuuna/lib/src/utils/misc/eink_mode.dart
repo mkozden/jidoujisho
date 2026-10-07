@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
+import 'package:progress_indicators/progress_indicators.dart';
 
 /// Adapts the app to black-and-white e-ink displays, which refresh slowly,
 /// ghost after partial updates and render colours as a few levels of grey.
@@ -25,9 +26,7 @@ class EinkMode {
   /// Apply the persisted setting. Called once during app initialisation.
   static void apply({required bool enabled}) {
     _enabled = enabled;
-    if (enabled) {
-      timeDilation = animationTimeDilation;
-    }
+    timeDilation = enabled ? animationTimeDilation : 1;
   }
 
   /// Background of surfaces that must be fully opaque in e-ink mode, such as
@@ -144,10 +143,12 @@ class EinkMode {
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(foregroundColor: foreground),
       ),
+      // A light grey fill keeps icons and text that set their own colour
+      // readable on selected tiles.
       listTileTheme: ListTileThemeData(
         dense: true,
-        selectedTileColor: foreground,
-        selectedColor: background,
+        selectedTileColor: foreground.withOpacity(0.15),
+        selectedColor: foreground,
         horizontalTitleGap: 0,
       ),
       inputDecorationTheme: InputDecorationTheme(
@@ -259,21 +260,48 @@ class JidoujishoLoadingIndicator extends StatelessWidget {
       );
     }
 
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        double size = constraints.biggest.shortestSide;
-        if (!size.isFinite || size == 0) {
-          size = 24;
-        }
+    // Sized like a CircularProgressIndicator: it fills a box it is given and
+    // is 36 pixels otherwise.
+    return ConstrainedBox(
+      constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+      child: FittedBox(
+        child: Icon(
+          Icons.hourglass_empty_rounded,
+          size: 36,
+          color: color,
+        ),
+      ),
+    );
+  }
+}
 
-        return Center(
-          child: Icon(
-            Icons.hourglass_empty_rounded,
-            size: size,
-            color: color,
-          ),
-        );
-      },
+/// Jumping dots that are a static ellipsis in e-ink mode.
+class JidoujishoJumpingDots extends StatelessWidget {
+  /// Create the dots.
+  const JidoujishoJumpingDots({
+    this.color = Colors.black,
+    this.fontSize = 10,
+    super.key,
+  });
+
+  /// Colour of the dots.
+  final Color color;
+
+  /// Font size of the dots.
+  final double fontSize;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!EinkMode.enabled) {
+      return JumpingDotsProgressIndicator(color: color, fontSize: fontSize);
+    }
+
+    return Text(
+      '...',
+      maxLines: 1,
+      softWrap: false,
+      overflow: TextOverflow.visible,
+      style: TextStyle(color: color, fontSize: fontSize),
     );
   }
 }

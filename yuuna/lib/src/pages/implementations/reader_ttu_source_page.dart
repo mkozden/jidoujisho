@@ -268,25 +268,15 @@ class _ReaderTtuSourcePageState extends BaseSourcePageState<ReaderTtuSourcePage>
   /// previously bundled reader version are never served.
   CacheMode get cacheMode => CacheMode.LOAD_DEFAULT;
 
-  /// Scripts injected before the reader loads. In e-ink mode, the reader is
-  /// switched to a black-and-white theme the first time only.
-  late final UnmodifiableListView<UserScript> _initialUserScripts = () {
-    if (!EinkMode.enabled) {
-      return UnmodifiableListView<UserScript>([]);
-    }
-
-    bool applyTheme = !mediaSource.einkThemeApplied;
-    if (applyTheme) {
-      mediaSource.setEinkThemeApplied();
-    }
-
-    return UnmodifiableListView<UserScript>([
-      UserScript(
-        source: mediaSource.einkUserScript(applyTheme: applyTheme),
-        injectionTime: UserScriptInjectionTime.AT_DOCUMENT_START,
-      ),
-    ]);
-  }();
+  /// Scripts injected before each page of the reader loads.
+  UnmodifiableListView<UserScript> get initialUserScripts =>
+      UnmodifiableListView<UserScript>([
+        if (EinkMode.enabled)
+          UserScript(
+            source: mediaSource.einkUserScript,
+            injectionTime: UserScriptInjectionTime.AT_DOCUMENT_START,
+          ),
+      ]);
 
   createFileFromBase64(String base64Content) async {
     var bytes = base64Decode(base64Content.replaceAll('\n', ''));
@@ -311,7 +301,7 @@ class _ReaderTtuSourcePageState extends BaseSourcePageState<ReaderTtuSourcePage>
           action: PermissionResponseAction.GRANT,
         );
       },
-      initialUserScripts: _initialUserScripts,
+      initialUserScripts: initialUserScripts,
       initialSettings: InAppWebViewSettings(
         allowFileAccessFromFileURLs: true,
         allowUniversalAccessFromFileURLs: true,
