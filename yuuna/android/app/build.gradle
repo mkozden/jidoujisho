@@ -25,6 +25,11 @@ apply plugin: 'com.android.application'
 apply plugin: 'kotlin-android'
 apply from: "$flutterRoot/packages/flutter_tools/gradle/flutter.gradle"
 
+// Builds with yuuna.sideBySide=true (see gradle.properties) use a different
+// package name and launcher label, so they install next to the original app
+// instead of replacing it.
+def sideBySide = (project.findProperty('yuuna.sideBySide') ?: 'false').toString().toBoolean()
+
 android {
     compileSdkVersion 34
     ndkVersion '21.4.7075529'
@@ -48,6 +53,10 @@ android {
         targetSdkVersion 32
         versionCode flutterVersionCode.toInteger()
         versionName flutterVersionName
+        if (sideBySide) {
+            applicationIdSuffix ".plus"
+        }
+        manifestPlaceholders += [appLabel: sideBySide ? "jidoujisho+" : "jidoujisho"]
     }
 
     buildTypes {
@@ -69,7 +78,7 @@ android {
 
     applicationVariants.all { variant ->
         variant.outputs.all { output ->
-            def appName = "jidoujisho_yuuna"
+            def appName = sideBySide ? "jidoujisho_yuuna_plus" : "jidoujisho_yuuna"
             def buildType = variant.buildType.name
             def architecture = output.getFilter(com.android.build.OutputFile.ABI)
             def newName

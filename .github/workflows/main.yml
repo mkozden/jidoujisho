@@ -27,3 +27,8 @@ jobs:
       working-directory: yuuna
     - run: flutter build apk --target-platform=android-arm64
       working-directory: yuuna
+    - uses: actions/upload-artifact@v4
+      with:
+        name: jidoujisho-apk
+        path: yuuna/build/app/outputs/flutter-apk/*.apk
+        if-no-files-found: error
