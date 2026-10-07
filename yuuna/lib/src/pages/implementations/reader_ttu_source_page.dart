@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:collection';
 import 'dart:convert';
 
 import 'package:document_file_save_plus/document_file_save_plus.dart';
@@ -7,7 +8,6 @@ import 'package:flutter/services.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:fluttertoast/fluttertoast.dart';
-import 'package:local_assets_server/local_assets_server.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:spaces/spaces.dart';
 import 'package:yuuna/creator.dart';
@@ -172,7 +172,7 @@ class _ReaderTtuSourcePageState extends BaseSourcePageState<ReaderTtuSourcePage>
   }
 
   Widget buildBody() {
-    AsyncValue<LocalAssetsServer> server =
+    AsyncValue<LocalWebAssetsServer> server =
         ref.watch(ttuServerProvider(appModel.targetLanguage));
 
     return server.when(
@@ -193,6 +193,14 @@ class _ReaderTtuSourcePageState extends BaseSourcePageState<ReaderTtuSourcePage>
             source: 'window.localStorage.getItem("theme")'))
         .toString();
     switch (currentTheme) {
+      case ReaderTtuSource.einkThemeName:
+        appModel.setOverrideDictionaryTheme(appModel.theme);
+        appModel.setOverrideDictionaryColor(Colors.white);
+        break;
+      case ReaderTtuSource.einkDarkThemeName:
+        appModel.setOverrideDictionaryTheme(appModel.darkTheme);
+        appModel.setOverrideDictionaryColor(Colors.black);
+        break;
       case 'light-theme':
         appModel.setOverrideDictionaryTheme(appModel.theme);
         appModel.setOverrideDictionaryColor(
@@ -254,15 +262,21 @@ class _ReaderTtuSourcePageState extends BaseSourcePageState<ReaderTtuSourcePage>
     return selectedText;
   }
 
-  CacheMode get cacheMode {
-    if (mediaSource.currentTtuInternalVersion ==
-        ReaderTtuSource.ttuInternalVersion) {
-      return CacheMode.LOAD_CACHE_ELSE_NETWORK;
-    } else {
-      mediaSource.setTtuInternalVersion();
-      return CacheMode.LOAD_NO_CACHE;
-    }
-  }
+  /// The reader is served from the APK, so the WebView follows the cache
+  /// headers set by [LocalWebAssetsServer]: pages are always revalidated and
+  /// only content-hashed build files are cached. This way pages cached from a
+  /// previously bundled reader version are never served.
+  CacheMode get cacheMode => CacheMode.LOAD_DEFAULT;
+
+  /// Scripts injected before each page of the reader loads.
+  UnmodifiableListView<UserScript> get initialUserScripts =>
+      UnmodifiableListView<UserScript>([
+        if (EinkMode.enabled)
+          UserScript(
+            source: mediaSource.einkUserScript,
+            injectionTime: UserScriptInjectionTime.AT_DOCUMENT_START,
+          ),
+      ]);
 
   createFileFromBase64(String base64Content) async {
     var bytes = base64Decode(base64Content.replaceAll('\n', ''));
@@ -274,7 +288,7 @@ class _ReaderTtuSourcePageState extends BaseSourcePageState<ReaderTtuSourcePage>
     Fluttertoast.showToast(msg: t.file_downloaded(name: _suggestedFilename));
   }
 
-  Widget buildReaderArea(LocalAssetsServer server) {
+  Widget buildReaderArea(LocalWebAssetsServer server) {
     return InAppWebView(
       initialUrlRequest: URLRequest(
         url: WebUri(
@@ -287,6 +301,7 @@ class _ReaderTtuSourcePageState extends BaseSourcePageState<ReaderTtuSourcePage>
           action: PermissionResponseAction.GRANT,
         );
       },
+      initialUserScripts: initialUserScripts,
       initialSettings: InAppWebViewSettings(
         allowFileAccessFromFileURLs: true,
         allowUniversalAccessFromFileURLs: true,

@@ -95,8 +95,8 @@ class BasePageState<T extends BasePage> extends ConsumerState<T> {
       child: SizedBox(
         height: Spacing.of(context).spaces.big,
         width: Spacing.of(context).spaces.big,
-        child: CircularProgressIndicator(
-          valueColor: AlwaysStoppedAnimation<Color>(theme.colorScheme.primary),
+        child: JidoujishoLoadingIndicator(
+          color: theme.colorScheme.primary,
         ),
       ),
     );

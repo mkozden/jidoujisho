@@ -1,0 +1,92 @@
+diff --git a/apps/web/src/lib/data/database/books-db/factory.ts b/apps/web/src/lib/data/database/books-db/factory.ts
+index 0ec776af..cf70944e 100644
+--- a/apps/web/src/lib/data/database/books-db/factory.ts
++++ b/apps/web/src/lib/data/database/books-db/factory.ts
+@@ -56,40 +56,61 @@ export function createBooksDb(name = 'books') {
+         }
+         case 2: {
+           await upgradeBooksDbFromV2(oldDb, oldVersion, newVersion, transaction);
+-          break;
+         }
++        // falls through
++        // Each later case only creates stores that are still missing, so
++        // databases left half-upgraded by older reader versions are repaired.
+         case 3: {
+-          oldDb.createObjectStore('storageSource', {
+-            keyPath: 'name'
+-          });
+-          break;
++          if (!oldDb.objectStoreNames.contains('storageSource')) {
++            oldDb.createObjectStore('storageSource', {
++              keyPath: 'name'
++            });
++          }
+         }
++        // falls through
+         case 4: {
+-          const statisticsStore = oldDb.createObjectStore('statistic', {
+-            keyPath: ['title', 'dateKey']
+-          });
+-
+-          statisticsStore.createIndex('dateKey', 'dateKey');
+-          statisticsStore.createIndex('completedBook', ['completedBook', 'title']);
+-
+-          const readingGoalsStore = oldDb.createObjectStore('readingGoal', {
+-            keyPath: 'goalStartDate'
+-          });
+-
+-          readingGoalsStore.createIndex('goalEndDate', 'goalEndDate');
+-
+-          oldDb.createObjectStore('lastModified', {
+-            keyPath: ['title', 'dataType']
+-          });
+-
+-          break;
++          // Version 4 databases upgraded from version 2 by older reader builds
++          // never got this store.
++          if (!oldDb.objectStoreNames.contains('storageSource')) {
++            oldDb.createObjectStore('storageSource', {
++              keyPath: 'name'
++            });
++          }
++
++          if (!oldDb.objectStoreNames.contains('statistic')) {
++            const statisticsStore = oldDb.createObjectStore('statistic', {
++              keyPath: ['title', 'dateKey']
++            });
++            statisticsStore.createIndex('dateKey', 'dateKey');
++            statisticsStore.createIndex('completedBook', ['completedBook', 'title']);
++          }
++
++          if (!oldDb.objectStoreNames.contains('readingGoal')) {
++            const readingGoalsStore = oldDb.createObjectStore('readingGoal', {
++              keyPath: 'goalStartDate'
++            });
++            readingGoalsStore.createIndex('goalEndDate', 'goalEndDate');
++          }
++
++          if (!oldDb.objectStoreNames.contains('lastModified')) {
++            oldDb.createObjectStore('lastModified', {
++              keyPath: ['title', 'dataType']
++            });
++          }
+         }
++        // falls through
+         case 5: {
+-          oldDb.createObjectStore('audioBook', { keyPath: 'title' });
++          if (!oldDb.objectStoreNames.contains('audioBook')) {
++            oldDb.createObjectStore('audioBook', { keyPath: 'title' });
++          }
+ 
+-          oldDb.createObjectStore('subtitle', { keyPath: 'title' });
++          if (!oldDb.objectStoreNames.contains('subtitle')) {
++            oldDb.createObjectStore('subtitle', { keyPath: 'title' });
++          }
+ 
+-          oldDb.createObjectStore('handle', { keyPath: ['title', 'dataType'] });
++          if (!oldDb.objectStoreNames.contains('handle')) {
++            oldDb.createObjectStore('handle', { keyPath: ['title', 'dataType'] });
++          }
+ 
+           break;
+         }

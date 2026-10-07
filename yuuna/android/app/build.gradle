@@ -25,6 +25,11 @@ apply plugin: 'com.android.application'
 apply plugin: 'kotlin-android'
 apply from: "$flutterRoot/packages/flutter_tools/gradle/flutter.gradle"
 
+// Builds with yuunaSideBySide=true (see gradle.properties) use a different
+// package name and launcher label, so they install next to the original app
+// instead of replacing it.
+def sideBySide = (project.findProperty('yuunaSideBySide') ?: 'false').toString().toBoolean()
+
 android {
     compileSdkVersion 34
     ndkVersion '21.4.7075529'
@@ -48,6 +53,30 @@ android {
         targetSdkVersion 32
         versionCode flutterVersionCode.toInteger()
         versionName flutterVersionName
+        if (sideBySide) {
+            applicationIdSuffix ".plus"
+        }
+        manifestPlaceholders += [appLabel: sideBySide ? "jidoujisho+" : "jidoujisho"]
+
+        // Plugins such as VLC and FFmpeg ship native libraries for every ABI.
+        // Only package the ABIs Flutter builds for (--target-platform); ABI
+        // splits (--split-per-abi) already filter them and conflict with this.
+        def targetPlatforms = project.findProperty('target-platform')
+        def splitPerAbi = (project.findProperty('split-per-abi') ?: 'false').toString().toBoolean()
+        if (targetPlatforms && !splitPerAbi) {
+            def platformAbis = [
+                'android-arm'  : 'armeabi-v7a',
+                'android-arm64': 'arm64-v8a',
+                'android-x86'  : 'x86',
+                'android-x64'  : 'x86_64',
+            ]
+            def abis = targetPlatforms.toString().split(',').collect { platformAbis[it.trim()] }.findAll { it }
+            if (abis) {
+                ndk {
+                    abiFilters.addAll(abis)
+                }
+            }
+        }
     }
 
     buildTypes {
@@ -69,7 +98,7 @@ android {
 
     applicationVariants.all { variant ->
         variant.outputs.all { output ->
-            def appName = "jidoujisho_yuuna"
+            def appName = sideBySide ? "jidoujisho_yuuna_plus" : "jidoujisho_yuuna"
             def buildType = variant.buildType.name
             def architecture = output.getFilter(com.android.build.OutputFile.ABI)
             def newName

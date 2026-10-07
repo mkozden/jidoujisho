@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:marquee/marquee.dart';
+import 'package:yuuna/utils.dart';
 
 /// Wrapper for a Marquee that only displays the Marquee effect only when there
 /// is insufficient space, and not all the time. Taken directly from:
@@ -406,6 +407,22 @@ class JidoujishoMarquee extends StatelessWidget {
       );
 
       tp.layout(maxWidth: constraints.maxWidth);
+
+      // A scrolling marquee keeps an e-ink display refreshing, so overflowing
+      // text is cut off with an ellipsis instead.
+      if (tp.didExceedMaxLines && EinkMode.enabled) {
+        return SizedBox(
+          width: constraints.maxWidth,
+          child: Text(
+            text,
+            style: style,
+            textScaleFactor: textScaleFactor,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.left,
+          ),
+        );
+      }
 
       if (tp.didExceedMaxLines) {
         return SizedBox(

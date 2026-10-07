@@ -10,6 +10,7 @@ import 'package:record_mp3_plus/record_mp3_plus.dart';
 import 'package:spaces/spaces.dart';
 import 'package:yuuna/i18n/strings.g.dart';
 import 'package:yuuna/pages.dart';
+import 'package:yuuna/src/utils/misc/eink_mode.dart';
 import 'package:yuuna/src/utils/misc/jidoujisho_time_format.dart';
 
 /// The content of the dialog used for selecting segmented units of a source
@@ -271,8 +272,8 @@ class _AudioRecorderDialogPageState
                 height: 48,
                 width: 48,
                 padding: const EdgeInsets.all(16),
-                child: const CircularProgressIndicator(
-                  valueColor: AlwaysStoppedAnimation(Colors.red),
+                child: const JidoujishoLoadingIndicator(
+                  color: Colors.red,
                 ),
               )
             else

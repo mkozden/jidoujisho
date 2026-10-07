@@ -322,6 +322,13 @@ class _HomePageState extends BasePageState<HomePage>
         icon: appModel.isDarkMode ? Icons.light_mode : Icons.dark_mode,
         action: appModel.toggleDarkMode,
       ),
+      buildPopupItem(
+        label: appModel.isEinkMode
+            ? t.options_eink_mode_disable
+            : t.options_eink_mode_enable,
+        icon: Icons.chrome_reader_mode_outlined,
+        action: appModel.toggleEinkMode,
+      ),
       // if ((appModel.androidDeviceInfo.version.sdkInt ?? 0) >= 33)
       //   buildPopupItem(
       //     label: optionsPipMode,

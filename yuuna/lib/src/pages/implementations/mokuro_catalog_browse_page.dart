@@ -351,7 +351,9 @@ class _MokuroCatalogBrowsePageState
             controller: controller,
           );
           if (item != null) {
-            await Wakelock.enable();
+            if (!EinkMode.enabled) {
+              await Wakelock.enable();
+            }
             await SystemChrome.setEnabledSystemUIMode(
                 SystemUiMode.immersiveSticky);
             appModel.setCurrentMediaItem(item);

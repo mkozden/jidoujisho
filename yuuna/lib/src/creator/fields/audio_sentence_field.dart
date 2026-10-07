@@ -68,9 +68,8 @@ class AudioSentenceField extends AudioExportField {
                 height: 48,
                 width: 48,
                 padding: const EdgeInsets.all(16),
-                child: CircularProgressIndicator(
-                  valueColor: AlwaysStoppedAnimation(
-                      Theme.of(context).unselectedWidgetColor),
+                child: JidoujishoLoadingIndicator(
+                  color: Theme.of(context).unselectedWidgetColor,
                 ),
               ),
               const Text(

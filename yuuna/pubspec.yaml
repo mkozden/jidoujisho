@@ -1,7 +1,7 @@
 name: yuuna
 description: A full-featured immersion language learning suite for mobile.
 publish_to: 'none'
-version: 2.9.1+200
+version: 2.9.2+201
 environment:
   sdk: ">=3.0.0<4.0.0"
   flutter: "^3.13.5"
@@ -83,7 +83,6 @@ dependencies:
   kana_kit: ^2.0.0
   lemmatizerx: ^1.0.0
   list_counter: ^1.0.2
-  local_assets_server: ^2.0.2+12
   marquee: ^2.2.3
   material_floating_search_bar:
     git:
@@ -188,18 +187,9 @@ flutter:
     - assets/ttu-ebook-reader/_app/immutable/
     - assets/ttu-ebook-reader/_app/immutable/assets/
     - assets/ttu-ebook-reader/_app/immutable/chunks/
-    - assets/ttu-ebook-reader/_app/immutable/components/
-    - assets/ttu-ebook-reader/_app/immutable/components/pages/
-    - assets/ttu-ebook-reader/_app/immutable/components/pages/auth/
-    - assets/ttu-ebook-reader/_app/immutable/components/pages/b/
-    - assets/ttu-ebook-reader/_app/immutable/components/pages/manage/
-    - assets/ttu-ebook-reader/_app/immutable/components/pages/settings/
-    - assets/ttu-ebook-reader/auth/
-    - assets/ttu-ebook-reader/b/
-    - assets/ttu-ebook-reader/fonts/
+    - assets/ttu-ebook-reader/_app/immutable/entry/
+    - assets/ttu-ebook-reader/_app/immutable/nodes/
     - assets/ttu-ebook-reader/icons/
-    - assets/ttu-ebook-reader/manage/
-    - assets/ttu-ebook-reader/settings/
 
   fonts:
     - family: NotoSansJP

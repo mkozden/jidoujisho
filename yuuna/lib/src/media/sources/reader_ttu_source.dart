@@ -7,8 +7,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:flutter_logs/flutter_logs.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:local_assets_server/local_assets_server.dart';
 import 'package:material_floating_search_bar/material_floating_search_bar.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:yuuna/language.dart';
 import 'package:yuuna/media.dart';
 import 'package:yuuna/models.dart';
@@ -17,7 +17,7 @@ import 'package:yuuna/utils.dart';
 
 /// A global [Provider] for serving a local ッツ Ebook Reader.
 final ttuServerProvider =
-    FutureProvider.family<LocalAssetsServer, Language>((ref, language) {
+    FutureProvider.family<LocalWebAssetsServer, Language>((ref, language) {
   return ReaderTtuSource.instance.serveLocalAssets(language);
 });
 
@@ -80,14 +80,29 @@ class ReaderTtuSource extends ReaderMediaSource {
     return 'idb_${getPortForLanguage(language)}';
   }
 
+  /// Package name of the build that installs alongside the original app
+  /// (`yuunaSideBySide` in android/gradle.properties).
+  static const String _sideBySidePackageName = 'app.arianneorpilla.yuuna.plus';
+
+  /// Added to the ports of the side-by-side build, so that it can serve its
+  /// reader while the original app is running. Every other build keeps the
+  /// original ports, as web storage is scoped to the origin.
+  int _portOffset = 0;
+
+  @override
+  Future<void> prepareResources() async {
+    final packageInfo = await PackageInfo.fromPlatform();
+    _portOffset = packageInfo.packageName == _sideBySidePackageName ? 100 : 0;
+  }
+
   /// Get the port for the current language. This port should ideally not conflict but should remain the same for
   /// caching purposes.
   int getPortForLanguage(Language language) {
     /// Language Customizable
     if (language is JapaneseLanguage) {
-      return 52059;
+      return 52059 + _portOffset;
     } else if (language is EnglishLanguage) {
-      return 52060;
+      return 52060 + _portOffset;
     }
 
     throw UnimplementedError();
@@ -97,8 +112,115 @@ class ReaderTtuSource extends ReaderMediaSource {
   /// retry look better for port conflicts.
   bool _lastServeFailed = false;
 
+  /// Name of the ッツ Ebook Reader custom theme used in e-ink mode.
+  static const String einkThemeName = 'E-ink';
+
+  /// Name of the dark variant of [einkThemeName].
+  static const String einkDarkThemeName = 'E-ink (dark)';
+
+  /// Script run before every page load of the reader in e-ink mode. It adds
+  /// pure black-and-white themes to the reader's own custom themes (its
+  /// default light theme draws text at 87% opacity, which renders grey on
+  /// e-ink) and switches to them once per reader origin, after which the
+  /// user's theme choice in the reader is kept. It also turns off CSS
+  /// animations and makes text selection invert the page colours instead of
+  /// the red highlight, which renders grey.
+  String get einkUserScript => """
+(function() {
+  if (location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
+    return;
+  }
+
+  var lightName = '$einkThemeName';
+  var darkName = '$einkDarkThemeName';
+  var light = {
+    fontColor: 'rgba(0, 0, 0, 1)',
+    backgroundColor: 'rgba(255, 255, 255, 1)',
+    selectionFontColor: 'rgba(255, 255, 255, 1)',
+    selectionBackgroundColor: 'rgba(0, 0, 0, 1)',
+    hintFuriganaFontColor: 'rgba(0, 0, 0, 0.5)',
+    hintFuriganaShadowColor: 'rgba(0, 0, 0, 0.3)',
+    tooltipTextFontColor: 'rgba(0, 0, 0, 1)'
+  };
+  var dark = {
+    fontColor: 'rgba(255, 255, 255, 1)',
+    backgroundColor: 'rgba(0, 0, 0, 1)',
+    selectionFontColor: 'rgba(0, 0, 0, 1)',
+    selectionBackgroundColor: 'rgba(255, 255, 255, 1)',
+    hintFuriganaFontColor: 'rgba(255, 255, 255, 0.5)',
+    hintFuriganaShadowColor: 'rgba(255, 255, 255, 0.3)',
+    tooltipTextFontColor: 'rgba(255, 255, 255, 1)'
+  };
+  var darkThemes = ['gray-theme', 'dark-theme', 'black-theme', darkName];
+
+  try {
+    var customThemes = JSON.parse(localStorage.getItem('customThemes') || '{}');
+    if (customThemes && typeof customThemes === 'object' && !Array.isArray(customThemes)) {
+      if (!customThemes[lightName] || !customThemes[darkName]) {
+        customThemes[lightName] = customThemes[lightName] || light;
+        customThemes[darkName] = customThemes[darkName] || dark;
+        localStorage.setItem('customThemes', JSON.stringify(customThemes));
+      }
+
+      if (!localStorage.getItem('jidoujishoEinkThemeApplied')) {
+        var current = localStorage.getItem('theme') || 'light-theme';
+        localStorage.setItem('theme',
+          darkThemes.indexOf(current) >= 0 ? darkName : lightName);
+        localStorage.setItem('jidoujishoEinkThemeApplied', 'true');
+      }
+    }
+  } catch (e) {
+    console.log(e);
+  }
+
+  var baseCss = '*, *::before, *::after { transition: none !important;' +
+      ' animation: none !important; scroll-behavior: auto !important; }';
+  var style = document.createElement('style');
+  style.textContent = baseCss;
+
+  // The page background is painted by an inner element, so walk up from the
+  // touched or selected node to the first opaque background.
+  function updateSelectionColors(node) {
+    var element = node && node.nodeType === 1 ? node : node && node.parentElement;
+    var color = [255, 255, 255];
+    for (; element; element = element.parentElement) {
+      var parts = getComputedStyle(element).backgroundColor.match(/[0-9.]+/g);
+      if (parts && (parts.length < 4 || Number(parts[3]) > 0)) {
+        color = parts.map(Number);
+        break;
+      }
+    }
+
+    var isDark = 0.299 * color[0] + 0.587 * color[1] + 0.114 * color[2] < 128;
+    var css = baseCss + ' ::selection { color: ' + (isDark ? '#000' : '#fff') +
+        ' !important; background: ' + (isDark ? '#fff' : '#000') + ' !important; }';
+    if (style.textContent !== css) {
+      style.textContent = css;
+    }
+  }
+
+  document.addEventListener('pointerdown', function(e) {
+    updateSelectionColors(e.target);
+  }, true);
+  document.addEventListener('selectionchange', function() {
+    var selection = document.getSelection();
+    updateSelectionColors(selection && selection.anchorNode);
+  });
+
+  function addStyle() {
+    (document.head || document.documentElement).appendChild(style);
+  }
+
+  if (document.documentElement) {
+    addStyle();
+  } else {
+    document.addEventListener('DOMContentLoaded', addStyle);
+  }
+})();
+""";
+
   /// For serving the reader assets locally.
-  Future<LocalAssetsServer> serveLocalAssets(Language language) async {
+  Future<LocalWebAssetsServer> serveLocalAssets(Language language) async {
     int port = getPortForLanguage(language);
 
     if (_lastServeFailed) {
@@ -107,11 +229,10 @@ class ReaderTtuSource extends ReaderMediaSource {
 
     try {
       _lastServeFailed = false;
-      final server = LocalAssetsServer(
+      final server = LocalWebAssetsServer(
         address: InternetAddress.loopbackIPv4,
         port: port,
         assetsBasePath: 'assets/ttu-ebook-reader',
-        logger: const DebugLogger(),
       );
 
       await server.serve();
@@ -672,24 +793,4 @@ indexedDB.databases().then((databases) => {
   }
 });
 ''';
-
-  /// This ensures that the internal version included with the app always uses
-  /// the cache and is consistent. If this version changes and the current stored
-  /// last version mismatches, a load from network is forced. The app will then
-  /// update its new last version, and all new loads will be from the cache
-  /// unless there is a new app version loaded with a different internal version.
-  static const ttuInternalVersion = 2;
-
-  /// Used to check for the current version.
-  int? get currentTtuInternalVersion {
-    return getPreference<int?>(key: 'ttu_internal_version', defaultValue: null);
-  }
-
-  /// Sets the new version.
-  void setTtuInternalVersion() async {
-    await setPreference<int?>(
-      key: 'ttu_internal_version',
-      value: ttuInternalVersion,
-    );
-  }
 }

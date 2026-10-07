@@ -201,9 +201,14 @@ class _PlayerTranscriptPageState
             builder: (_, __) => const SizedBox.shrink(),
             borderRadius: BorderRadius.zero,
             elevation: 0,
-            backgroundColor: appModel.isDarkMode
-                ? const Color.fromARGB(255, 30, 30, 30)
-                : const Color.fromARGB(255, 229, 229, 229),
+            backgroundColor: EinkMode.enabled
+                ? EinkMode.surfaceColor(dark: appModel.isDarkMode)
+                : appModel.isDarkMode
+                    ? const Color.fromARGB(255, 30, 30, 30)
+                    : const Color.fromARGB(255, 229, 229, 229),
+            border: EinkMode.enabled
+                ? EinkMode.border(dark: appModel.isDarkMode)
+                : null,
             backdropColor: Colors.transparent,
             accentColor: theme.colorScheme.primary,
             scrollPadding: const EdgeInsets.only(top: 6, bottom: 56),

@@ -89,8 +89,15 @@ class _RecursiveDictionaryPageState
       }
     }
 
+    ThemeData dictionaryTheme =
+        !_isCreatorOpen ? appModel.overrideDictionaryTheme ?? theme : theme;
+    if (EinkMode.enabled) {
+      backgroundColor = EinkMode.surfaceColor(
+          dark: dictionaryTheme.brightness == Brightness.dark);
+    }
+
     return Theme(
-      data: !_isCreatorOpen ? appModel.overrideDictionaryTheme ?? theme : theme,
+      data: dictionaryTheme,
       child: Scaffold(
         resizeToAvoidBottomInset: false,
         backgroundColor: backgroundColor,
@@ -119,7 +126,17 @@ class _RecursiveDictionaryPageState
       }
     }
 
+    bool isDark = (!_isCreatorOpen
+                ? appModel.overrideDictionaryTheme ?? theme
+                : theme)
+            .brightness ==
+        Brightness.dark;
+    if (EinkMode.enabled) {
+      backgroundColor = EinkMode.surfaceColor(dark: isDark);
+    }
+
     return FloatingSearchBar(
+      border: EinkMode.enabled ? EinkMode.border(dark: isDark) : null,
       physics: const AlwaysScrollableScrollPhysics(
         parent: BouncingScrollPhysics(),
       ),
@@ -148,7 +165,7 @@ class _RecursiveDictionaryPageState
           }
         }
       },
-      progress: _isSearching,
+      progress: !EinkMode.enabled && _isSearching,
       leadingActions: [
         buildBackButton(),
       ],

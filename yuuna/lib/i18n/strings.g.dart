@@ -1,9 +1,9 @@
 /// Generated file. Do not edit.
 ///
 /// Locales: 1
-/// Strings: 397
+/// Strings: 399
 ///
-/// Built on 2023-09-30 at 09:59 UTC
+/// Built on 2026-10-07 at 18:57 UTC
 
 // coverage:ignore-file
 // ignore_for_file: type=lint
@@ -212,6 +212,8 @@ class _StringsEn implements BaseTranslations<AppLocale, _StringsEn> {
 	String get dictionaries_menu_empty => 'Import a dictionary for use';
 	String get options_theme_light => 'Use light theme';
 	String get options_theme_dark => 'Use dark theme';
+	String get options_eink_mode_enable => 'Enable e-ink mode';
+	String get options_eink_mode_disable => 'Disable e-ink mode';
 	String get options_incognito_on => 'Turn on incognito mode';
 	String get options_incognito_off => 'Turn off incognito mode';
 	String get options_dictionaries => 'Manage dictionaries';
@@ -641,6 +643,8 @@ extension on _StringsEn {
 			case 'dictionaries_menu_empty': return 'Import a dictionary for use';
 			case 'options_theme_light': return 'Use light theme';
 			case 'options_theme_dark': return 'Use dark theme';
+			case 'options_eink_mode_enable': return 'Enable e-ink mode';
+			case 'options_eink_mode_disable': return 'Disable e-ink mode';
 			case 'options_incognito_on': return 'Turn on incognito mode';
 			case 'options_incognito_off': return 'Turn off incognito mode';
 			case 'options_dictionaries': return 'Manage dictionaries';
