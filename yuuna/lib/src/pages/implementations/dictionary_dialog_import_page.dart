@@ -3,6 +3,7 @@ import 'package:multi_value_listenable_builder/multi_value_listenable_builder.da
 import 'package:spaces/spaces.dart';
 import 'package:yuuna/i18n/strings.g.dart';
 import 'package:yuuna/pages.dart';
+import 'package:yuuna/src/utils/misc/eink_mode.dart';
 
 /// The content of the dialog used for showing dictionary import progress when
 /// importing a dictionary from the dictionary menu. See the
@@ -52,10 +53,8 @@ class _DictionaryDialogImportPageState
   }
 
   Widget buildProgressSpinner() {
-    return CircularProgressIndicator(
-      valueColor: AlwaysStoppedAnimation<Color>(
-        theme.colorScheme.primary,
-      ),
+    return JidoujishoLoadingIndicator(
+      color: theme.colorScheme.primary,
     );
   }
 

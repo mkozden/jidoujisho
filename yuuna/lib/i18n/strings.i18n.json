@@ -67,6 +67,8 @@
     "dictionaries_menu_empty": "Import a dictionary for use",
     "options_theme_light": "Use light theme",
     "options_theme_dark": "Use dark theme",
+    "options_eink_mode_enable": "Enable e-ink mode",
+    "options_eink_mode_disable": "Disable e-ink mode",
     "options_incognito_on": "Turn on incognito mode",
     "options_incognito_off": "Turn off incognito mode",
     "options_dictionaries": "Manage dictionaries",

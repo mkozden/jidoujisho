@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:collection';
 import 'dart:convert';
 
 import 'package:document_file_save_plus/document_file_save_plus.dart';
@@ -192,6 +193,14 @@ class _ReaderTtuSourcePageState extends BaseSourcePageState<ReaderTtuSourcePage>
             source: 'window.localStorage.getItem("theme")'))
         .toString();
     switch (currentTheme) {
+      case ReaderTtuSource.einkThemeName:
+        appModel.setOverrideDictionaryTheme(appModel.theme);
+        appModel.setOverrideDictionaryColor(Colors.white);
+        break;
+      case ReaderTtuSource.einkDarkThemeName:
+        appModel.setOverrideDictionaryTheme(appModel.darkTheme);
+        appModel.setOverrideDictionaryColor(Colors.black);
+        break;
       case 'light-theme':
         appModel.setOverrideDictionaryTheme(appModel.theme);
         appModel.setOverrideDictionaryColor(
@@ -259,6 +268,26 @@ class _ReaderTtuSourcePageState extends BaseSourcePageState<ReaderTtuSourcePage>
   /// previously bundled reader version are never served.
   CacheMode get cacheMode => CacheMode.LOAD_DEFAULT;
 
+  /// Scripts injected before the reader loads. In e-ink mode, the reader is
+  /// switched to a black-and-white theme the first time only.
+  late final UnmodifiableListView<UserScript> _initialUserScripts = () {
+    if (!EinkMode.enabled) {
+      return UnmodifiableListView<UserScript>([]);
+    }
+
+    bool applyTheme = !mediaSource.einkThemeApplied;
+    if (applyTheme) {
+      mediaSource.setEinkThemeApplied();
+    }
+
+    return UnmodifiableListView<UserScript>([
+      UserScript(
+        source: mediaSource.einkUserScript(applyTheme: applyTheme),
+        injectionTime: UserScriptInjectionTime.AT_DOCUMENT_START,
+      ),
+    ]);
+  }();
+
   createFileFromBase64(String base64Content) async {
     var bytes = base64Decode(base64Content.replaceAll('\n', ''));
     DocumentFileSavePlus().saveFile(
@@ -282,6 +311,7 @@ class _ReaderTtuSourcePageState extends BaseSourcePageState<ReaderTtuSourcePage>
           action: PermissionResponseAction.GRANT,
         );
       },
+      initialUserScripts: _initialUserScripts,
       initialSettings: InAppWebViewSettings(
         allowFileAccessFromFileURLs: true,
         allowUniversalAccessFromFileURLs: true,

@@ -153,9 +153,8 @@ class _ReaderChatgptPageState extends BaseSourcePageState<ReaderChatgptPage> {
                   width: Spacing.of(context).spaces.extraBig,
                   child: Padding(
                     padding: Spacing.of(context).insets.all.semiBig,
-                    child: CircularProgressIndicator(
-                      valueColor: AlwaysStoppedAnimation<Color>(
-                          theme.colorScheme.primary),
+                    child: JidoujishoLoadingIndicator(
+                      color: theme.colorScheme.primary,
                     ),
                   ),
                 )

@@ -429,7 +429,16 @@ class AppModel with ChangeNotifier {
       );
 
   /// Shows when the current mode is a light theme.
-  ThemeData get theme => ThemeData(
+  ThemeData get theme => EinkMode.enabled
+      ? EinkMode.buildTheme(textTheme: textTheme, dark: false)
+      : _standardTheme;
+
+  /// Shows when the current mode is a dark theme.
+  ThemeData get darkTheme => EinkMode.enabled
+      ? EinkMode.buildTheme(textTheme: textTheme, dark: true)
+      : _standardDarkTheme;
+
+  ThemeData get _standardTheme => ThemeData(
         scaffoldBackgroundColor: Colors.white,
         unselectedWidgetColor: Colors.black54,
         textTheme: textTheme,
@@ -511,8 +520,7 @@ class AppModel with ChangeNotifier {
             .copyWith(background: Colors.white),
       );
 
-  /// Shows when the current mode is a dark theme.
-  ThemeData get darkTheme => ThemeData(
+  ThemeData get _standardDarkTheme => ThemeData(
         scaffoldBackgroundColor: Colors.black,
         textTheme: textTheme,
         switchTheme: SwitchThemeData(
@@ -1146,6 +1154,7 @@ class AppModel with ChangeNotifier {
     await Hive.initFlutter();
     _preferences = await Hive.openBox('appModel');
     _dictionaryHistory = await Hive.openBox('dictionaryHistory');
+    EinkMode.apply(enabled: isEinkMode);
 
     /// Perform startup activities unnecessary to further initialisation here.
     await requestExternalStoragePermissions();
@@ -1255,6 +1264,16 @@ class AppModel with ChangeNotifier {
   /// Toggle between light and dark mode.
   void toggleDarkMode() async {
     await _preferences.put('is_dark_mode', !isDarkMode);
+    Restart.restartApp();
+  }
+
+  /// Whether the app is adapted for black-and-white e-ink displays. See
+  /// [EinkMode].
+  bool get isEinkMode => _preferences.get('e_ink_mode', defaultValue: false);
+
+  /// Toggle e-ink mode. The app restarts so that every screen picks it up.
+  void toggleEinkMode() async {
+    await _preferences.put('e_ink_mode', !isEinkMode);
     Restart.restartApp();
   }
 
@@ -2471,7 +2490,11 @@ class AppModel with ChangeNotifier {
     _overrideDictionaryColor = null;
     _overrideDictionaryTheme = null;
 
-    await Wakelock.enable();
+    // A static page costs no power on an e-ink display, so readers leave
+    // screen timeout to the device in e-ink mode.
+    if (!EinkMode.enabled || mediaSource.mediaType != ReaderMediaType.instance) {
+      await Wakelock.enable();
+    }
     await SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
 
     if (item != null && mediaSource.implementsHistory) {

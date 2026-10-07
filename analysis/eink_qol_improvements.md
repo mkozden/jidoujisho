@@ -16,6 +16,39 @@ E-ink panels:
 Anything that animates, fades, shimmers, or relies on colour or low contrast
 therefore works against the device.
 
+## Implementation status
+
+E-ink mode is implemented on this branch. Turn it on from the home screen menu
+with **Enable e-ink mode**; the app restarts. The code is in
+`yuuna/lib/src/utils/misc/eink_mode.dart` and is read through `EinkMode.enabled`.
+
+| # | Item | Status |
+|---|---|---|
+| 1 | E-ink mode toggle | Done: Hive key `e_ink_mode`, home menu, restarts the app |
+| 2 | Remove animations | Done. The theme has no-op page transitions and `NoSplash`, and there is no overscroll glow or bounce. Flutter's `timeDilation` is set to 0.05, so the remaining animations (dialogs, menus, fades, scroll-to-top, switches, bottom sheets) finish in about one frame. The marquee becomes ellipsized text. |
+| 3 | Black-and-white theme | Done, with light and dark variants. Search bars and history tiles are solid. |
+| 4 | Opaque dictionary pop-up | Done: opaque, outlined, no tints |
+| 4a | "Already in Anki or stash" state | Done: the quick-action button is inverted (black with a white icon) instead of red |
+| 5 | Static loading indicator | Done: a static hourglass image replaces the spinners and indeterminate progress bars |
+| 6 | Reader page turns (ttu) | Done. See *ttu text colour* below. CSS transitions and animations are also off in the reader. |
+| 7 | Tap zones | Not planned: ttu swiping is enough, and Mokuro already has tap zones |
+| 8 | Hardware page-turn keys | Not planned: the target device has no extra buttons |
+| 9 | Periodic full refresh | Not planned: Onyx's own refresh tools handle it |
+| 10 | No wakelock while reading | Done: reader sources skip the wakelock in e-ink mode; the player keeps it |
+| 11 | Larger dictionary text | Done: 1.15× text scale for dictionary results (`EinkMode.dictionaryTextScale`), aimed at ~220 ppi 10" panels |
+| 12 | Device detection | Not done |
+
+**ttu text colour.** ttu has a custom theme feature (localStorage
+`customThemes`). In e-ink mode a document-start script adds two themes there,
+**E-ink** (pure black on white) and **E-ink (dark)**. Both have inverted
+selection colours, and both appear in ttu's own theme picker. The first time
+the reader opens in e-ink mode, it switches to the matching one: the dark
+variant if a dark ttu theme was selected. After that the user's choice is left
+alone. The app's red lookup highlight is also overridden with an inverted one.
+This replaces the CSS override proposed in section 6.
+
+Mokuro-specific changes are out of scope for now.
+
 ## Summary
 
 | # | Change | Effort | Impact |

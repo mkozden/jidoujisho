@@ -368,7 +368,12 @@ class _JidoujishoAppState extends ConsumerState<JidoujishoApp>
         dataBuilder: (context) {
           return SpacingData.generate(10);
         },
-        child: child!,
+        child: EinkMode.enabled
+            ? ScrollConfiguration(
+                behavior: const EinkScrollBehavior(),
+                child: child!,
+              )
+            : child!,
       ),
     );
   }

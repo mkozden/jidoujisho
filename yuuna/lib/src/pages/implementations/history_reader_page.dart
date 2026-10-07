@@ -3,6 +3,7 @@ import 'package:spaces/spaces.dart';
 import 'package:transparent_image/transparent_image.dart';
 import 'package:yuuna/media.dart';
 import 'package:yuuna/pages.dart';
+import 'package:yuuna/utils.dart';
 
 /// A default page for a [ReaderMediaSource]'s tab body content when selected
 /// as a source in the main menu.
@@ -103,7 +104,9 @@ class HistoryReaderPageState<T extends BaseHistoryPage>
               padding: const EdgeInsets.fromLTRB(2, 2, 2, 4),
               height: constraints.maxHeight * 0.25,
               width: double.maxFinite,
-              color: Colors.black.withOpacity(0.6),
+              color: EinkMode.enabled
+                  ? Colors.black
+                  : Colors.black.withOpacity(0.6),
               child: Text(
                 mediaSource.getDisplayTitleFromMediaItem(item),
                 overflow: TextOverflow.ellipsis,
@@ -124,9 +127,11 @@ class HistoryReaderPageState<T extends BaseHistoryPage>
                 : ((item.position / item.duration) > 0.97)
                     ? 1
                     : (item.position / item.duration),
-            backgroundColor: Colors.white.withOpacity(0.6),
-            valueColor: const AlwaysStoppedAnimation<Color>(Colors.red),
-            minHeight: 2,
+            backgroundColor:
+                EinkMode.enabled ? Colors.white : Colors.white.withOpacity(0.6),
+            valueColor: AlwaysStoppedAnimation<Color>(
+                EinkMode.enabled ? Colors.black : Colors.red),
+            minHeight: EinkMode.enabled ? 4 : 2,
           ),
         ],
       ),

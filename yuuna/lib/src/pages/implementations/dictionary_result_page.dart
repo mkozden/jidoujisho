@@ -4,6 +4,7 @@ import 'package:spaces/spaces.dart';
 import 'package:yuuna/creator.dart';
 import 'package:yuuna/dictionary.dart';
 import 'package:yuuna/pages.dart';
+import 'package:yuuna/utils.dart';
 
 /// Returns the widget for a [DictionarySearchResult] which returns a
 /// scrollable list of each [DictionaryEntry] in its mappings.
@@ -106,13 +107,20 @@ class _DictionaryResultPageState extends BasePageState<DictionaryResultPage> {
       }
     }
 
+    MediaQueryData mediaQuery = MediaQuery.of(context);
     return MediaQuery(
-      data: MediaQuery.of(context).removePadding(
-        removeTop: true,
-        removeBottom: true,
-        removeLeft: true,
-        removeRight: true,
-      ),
+      data: mediaQuery
+          .removePadding(
+            removeTop: true,
+            removeBottom: true,
+            removeLeft: true,
+            removeRight: true,
+          )
+          .copyWith(
+            textScaleFactor: EinkMode.enabled
+                ? mediaQuery.textScaleFactor * EinkMode.dictionaryTextScale
+                : mediaQuery.textScaleFactor,
+          ),
       child: RawScrollbar(
         thumbVisibility: true,
         thickness: 3,

@@ -86,10 +86,13 @@ class DictionaryTermPage extends ConsumerWidget {
       children: [
         SliverPositioned.fill(
           child: Card(
-            color: cardColor?.withOpacity(opacity) ??
-                (appModel.isDarkMode
-                    ? Color.fromRGBO(16, 16, 16, opacity)
-                    : Color.fromRGBO(249, 249, 249, opacity)),
+            color: EinkMode.enabled
+                ? EinkMode.surfaceColor(
+                    dark: Theme.of(context).brightness == Brightness.dark)
+                : cardColor?.withOpacity(opacity) ??
+                    (appModel.isDarkMode
+                        ? Color.fromRGBO(16, 16, 16, opacity)
+                        : Color.fromRGBO(249, 249, 249, opacity)),
             elevation: 0,
             shape: const RoundedRectangleBorder(),
           ),
@@ -253,36 +256,61 @@ class _DictionaryTermActionsRowState
         button = const SizedBox.shrink();
       } else {
         late Color enabledColor;
-        Color defaultColor = Theme.of(context).brightness == Brightness.dark
-            ? Colors.white
-            : Colors.black;
+        bool isDark = Theme.of(context).brightness == Brightness.dark;
+        Color defaultColor = isDark ? Colors.white : Colors.black;
         enabledColor = colors[quickAction.uniqueKey] ?? defaultColor;
+        Color backgroundColor = isDark
+            ? Colors.white.withOpacity(0.05)
+            : Colors.black.withOpacity(0.05);
+
+        // An action with a highlight colour is already "done" for this term,
+        // e.g. the term is already in Anki or in the stash. Colour does not
+        // show on e-ink, so the button is inverted instead.
+        bool isActive = colors[quickAction.uniqueKey] != null;
+        if (EinkMode.enabled) {
+          enabledColor = isActive
+              ? EinkMode.surfaceColor(dark: isDark)
+              : EinkMode.foregroundColor(dark: isDark);
+          backgroundColor = isActive
+              ? EinkMode.foregroundColor(dark: isDark)
+              : EinkMode.surfaceColor(dark: isDark);
+        }
+
+        Widget iconButton = JidoujishoIconButton(
+          busy: true,
+          enabledColor: enabledColor,
+          disabledColor: enabledColor.withOpacity(0.5),
+          shapeBorder: const RoundedRectangleBorder(),
+          backgroundColor: backgroundColor,
+          size: Spacing.of(context).spaces.semiBig,
+          tooltip: quickAction.getLocalisedLabel(appModel),
+          icon: quickAction.icon,
+          onTap: () async {
+            await quickAction!.executeAction(
+              context: context,
+              ref: ref,
+              appModel: appModel,
+              creatorModel: creatorModel,
+              heading: widget.heading,
+              dictionaryName: null,
+            );
+
+            ref.invalidate(quickActionColorProvider(widget.heading));
+          },
+        );
+
+        if (EinkMode.enabled) {
+          iconButton = DecoratedBox(
+            decoration: BoxDecoration(
+              border: Border.fromBorderSide(EinkMode.border(dark: isDark)),
+            ),
+            child: iconButton,
+          );
+        }
+
         button = Padding(
           padding: Spacing.of(context).insets.onlyLeft.semiSmall,
-          child: JidoujishoIconButton(
-            busy: true,
-            enabledColor: enabledColor,
-            disabledColor: enabledColor.withOpacity(0.5),
-            shapeBorder: const RoundedRectangleBorder(),
-            backgroundColor: Theme.of(context).brightness == Brightness.dark
-                ? Colors.white.withOpacity(0.05)
-                : Colors.black.withOpacity(0.05),
-            size: Spacing.of(context).spaces.semiBig,
-            tooltip: quickAction.getLocalisedLabel(appModel),
-            icon: quickAction.icon,
-            onTap: () async {
-              await quickAction!.executeAction(
-                context: context,
-                ref: ref,
-                appModel: appModel,
-                creatorModel: creatorModel,
-                heading: widget.heading,
-                dictionaryName: null,
-              );
-
-              ref.invalidate(quickActionColorProvider(widget.heading));
-            },
-          ),
+          child: iconButton,
         );
       }
 

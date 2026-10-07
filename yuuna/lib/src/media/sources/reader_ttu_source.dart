@@ -112,6 +112,87 @@ class ReaderTtuSource extends ReaderMediaSource {
   /// retry look better for port conflicts.
   bool _lastServeFailed = false;
 
+  /// Name of the ッツ Ebook Reader custom theme used in e-ink mode.
+  static const String einkThemeName = 'E-ink';
+
+  /// Name of the dark variant of [einkThemeName].
+  static const String einkDarkThemeName = 'E-ink (dark)';
+
+  /// Whether the reader has already been switched to an e-ink theme once.
+  /// After that, the user's theme choice in the reader is left alone.
+  bool get einkThemeApplied =>
+      getPreference<bool>(key: 'eink_theme_applied', defaultValue: false);
+
+  /// Records that the reader has been switched to an e-ink theme.
+  Future<void> setEinkThemeApplied() async {
+    await setPreference<bool>(key: 'eink_theme_applied', value: true);
+  }
+
+  /// Script run before the reader loads in e-ink mode. It adds pure
+  /// black-and-white themes to the reader's own custom themes (its default
+  /// light theme draws text at 87% opacity, which renders grey on e-ink),
+  /// optionally switches to them, inverts text selection and turns off CSS
+  /// animations.
+  String einkUserScript({required bool applyTheme}) {
+    return """
+(function() {
+  var light = {
+    fontColor: 'rgba(0, 0, 0, 1)',
+    backgroundColor: 'rgba(255, 255, 255, 1)',
+    selectionFontColor: 'rgba(255, 255, 255, 1)',
+    selectionBackgroundColor: 'rgba(0, 0, 0, 1)',
+    hintFuriganaFontColor: 'rgba(0, 0, 0, 0.5)',
+    hintFuriganaShadowColor: 'rgba(0, 0, 0, 0.3)',
+    tooltipTextFontColor: 'rgba(0, 0, 0, 1)'
+  };
+  var dark = {
+    fontColor: 'rgba(255, 255, 255, 1)',
+    backgroundColor: 'rgba(0, 0, 0, 1)',
+    selectionFontColor: 'rgba(0, 0, 0, 1)',
+    selectionBackgroundColor: 'rgba(255, 255, 255, 1)',
+    hintFuriganaFontColor: 'rgba(255, 255, 255, 0.5)',
+    hintFuriganaShadowColor: 'rgba(255, 255, 255, 0.3)',
+    tooltipTextFontColor: 'rgba(255, 255, 255, 1)'
+  };
+  var darkThemes = ['gray-theme', 'dark-theme', 'black-theme', '$einkDarkThemeName'];
+
+  try {
+    var customThemes = JSON.parse(localStorage.getItem('customThemes') || '{}');
+    customThemes['$einkThemeName'] = light;
+    customThemes['$einkDarkThemeName'] = dark;
+    localStorage.setItem('customThemes', JSON.stringify(customThemes));
+
+    if ($applyTheme) {
+      var current = localStorage.getItem('theme') || 'light-theme';
+      localStorage.setItem('theme',
+        darkThemes.indexOf(current) >= 0 ? '$einkDarkThemeName' : '$einkThemeName');
+    }
+  } catch (e) {
+    console.log(e);
+  }
+
+  var isDark = darkThemes.indexOf(localStorage.getItem('theme')) >= 0;
+  var css = '*, *::before, *::after {' +
+      ' transition: none !important; animation: none !important;' +
+      ' scroll-behavior: auto !important; }' +
+      ' ::selection { color: ' + (isDark ? '#000' : '#fff') + ' !important;' +
+      ' background: ' + (isDark ? '#fff' : '#000') + ' !important; }';
+
+  function addStyle() {
+    var style = document.createElement('style');
+    style.textContent = css;
+    (document.head || document.documentElement).appendChild(style);
+  }
+
+  if (document.documentElement) {
+    addStyle();
+  } else {
+    document.addEventListener('DOMContentLoaded', addStyle);
+  }
+})();
+""";
+  }
+
   /// For serving the reader assets locally.
   Future<LocalWebAssetsServer> serveLocalAssets(Language language) async {
     int port = getPortForLanguage(language);

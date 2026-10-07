@@ -307,12 +307,23 @@ class BaseSourcePageState<T extends BaseSourcePage> extends BasePageState<T> {
   /// positioned version.
   Widget buildDictionaryResult() {
     Color color = appModel.overrideDictionaryColor ?? theme.cardColor;
+    bool isDark = (appModel.overrideDictionaryTheme ?? theme).brightness ==
+        Brightness.dark;
 
-    if ((appModel.overrideDictionaryTheme ?? theme).brightness ==
-        Brightness.dark) {
+    if (isDark) {
       color = JidoujishoColor.lighten(color, 0.05);
     } else {
       color = JidoujishoColor.darken(color, 0.05);
+    }
+
+    // Translucent and tinted pop-ups are unreadable over text on e-ink, so
+    // the pop-up is opaque and outlined instead.
+    Decoration? einkDecoration;
+    if (EinkMode.enabled) {
+      einkDecoration = BoxDecoration(
+        color: EinkMode.surfaceColor(dark: isDark),
+        border: Border.fromBorderSide(EinkMode.border(dark: isDark)),
+      );
     }
 
     return Dismissible(
@@ -328,7 +339,10 @@ class BaseSourcePageState<T extends BaseSourcePage> extends BasePageState<T> {
       child: Container(
         padding: Spacing.of(context).insets.all.semiSmall,
         margin: Spacing.of(context).insets.all.normal,
-        color: color.withOpacity(dictionaryBackgroundOpacity),
+        color: einkDecoration == null
+            ? color.withOpacity(dictionaryBackgroundOpacity)
+            : null,
+        decoration: einkDecoration,
         child: Stack(
           children: [
             buildSearchResult(),
@@ -360,11 +374,20 @@ class BaseSourcePageState<T extends BaseSourcePage> extends BasePageState<T> {
               shape: const RoundedRectangleBorder(),
               child: Column(
                 children: [
-                  const LinearProgressIndicator(
-                    backgroundColor: Colors.transparent,
-                    valueColor: AlwaysStoppedAnimation<Color>(Colors.red),
-                    minHeight: 2.75,
-                  ),
+                  if (EinkMode.enabled)
+                    Align(
+                      alignment: Alignment.topRight,
+                      child: SizedBox.square(
+                        dimension: Spacing.of(context).spaces.semiBig,
+                        child: const JidoujishoLoadingIndicator(),
+                      ),
+                    )
+                  else
+                    const LinearProgressIndicator(
+                      backgroundColor: Colors.transparent,
+                      valueColor: AlwaysStoppedAnimation<Color>(Colors.red),
+                      minHeight: 2.75,
+                    ),
                   Expanded(child: Container())
                 ],
               ),
@@ -388,11 +411,15 @@ class BaseSourcePageState<T extends BaseSourcePage> extends BasePageState<T> {
             height: double.infinity,
             width: double.infinity,
             child: Card(
-              color: appModel.overrideDictionaryColor
-                      ?.withOpacity(dictionaryEntryOpacity) ??
-                  (Theme.of(context).brightness == Brightness.dark
-                      ? Color.fromRGBO(16, 16, 16, dictionaryEntryOpacity)
-                      : Color.fromRGBO(249, 249, 249, dictionaryEntryOpacity)),
+              color: EinkMode.enabled
+                  ? EinkMode.surfaceColor(
+                      dark: Theme.of(context).brightness == Brightness.dark)
+                  : appModel.overrideDictionaryColor
+                          ?.withOpacity(dictionaryEntryOpacity) ??
+                      (Theme.of(context).brightness == Brightness.dark
+                          ? Color.fromRGBO(16, 16, 16, dictionaryEntryOpacity)
+                          : Color.fromRGBO(
+                              249, 249, 249, dictionaryEntryOpacity)),
               elevation: 0,
               shape: const RoundedRectangleBorder(),
               child: Column(
@@ -445,9 +472,17 @@ class BaseSourcePageState<T extends BaseSourcePage> extends BasePageState<T> {
                     );
                   },
             child: Container(
-              color: Theme.of(context).brightness == Brightness.dark
-                  ? Colors.white.withOpacity(0.05)
-                  : Colors.black.withOpacity(0.05),
+              decoration: BoxDecoration(
+                color: EinkMode.enabled
+                    ? null
+                    : Theme.of(context).brightness == Brightness.dark
+                        ? Colors.white.withOpacity(0.05)
+                        : Colors.black.withOpacity(0.05),
+                border: EinkMode.enabled
+                    ? Border.fromBorderSide(EinkMode.border(
+                        dark: Theme.of(context).brightness == Brightness.dark))
+                    : null,
+              ),
               width: double.maxFinite,
               child: Padding(
                 padding: Spacing.of(context).insets.all.normal,

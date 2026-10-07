@@ -36,15 +36,21 @@ abstract class BaseMediaSearchBarState<T extends BaseMediaSearchBar>
       builder: buildFloatingSearchBody,
       borderRadius: BorderRadius.zero,
       elevation: 0,
-      backgroundColor: appModel.isDarkMode
-          ? const Color.fromARGB(255, 30, 30, 30)
-          : const Color.fromARGB(255, 229, 229, 229),
+      backgroundColor: EinkMode.enabled
+          ? EinkMode.surfaceColor(dark: appModel.isDarkMode)
+          : appModel.isDarkMode
+              ? const Color.fromARGB(255, 30, 30, 30)
+              : const Color.fromARGB(255, 229, 229, 229),
+      border: EinkMode.enabled
+          ? EinkMode.border(dark: appModel.isDarkMode)
+          : null,
       backdropColor: appModel.isDarkMode ? Colors.black : Colors.white,
       accentColor: theme.colorScheme.primary,
       scrollPadding: const EdgeInsets.only(top: 6, bottom: 56),
       transitionDuration: Duration.zero,
       margins: const EdgeInsets.symmetric(horizontal: 6),
-      progress: _isSearching,
+      // The indeterminate progress bar would keep an e-ink display refreshing.
+      progress: !EinkMode.enabled && _isSearching,
       width: double.maxFinite,
       transition: SlideFadeFloatingSearchBarTransition(),
       automaticallyImplyBackButton: false,

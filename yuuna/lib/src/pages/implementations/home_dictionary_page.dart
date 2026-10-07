@@ -102,9 +102,14 @@ class _HomeDictionaryPageState<T extends BaseTabPage> extends BaseTabPageState {
       builder: buildFloatingSearchBody,
       borderRadius: BorderRadius.zero,
       elevation: 0,
-      backgroundColor: appModel.isDarkMode
-          ? const Color.fromARGB(255, 30, 30, 30)
-          : const Color.fromARGB(255, 229, 229, 229),
+      backgroundColor: EinkMode.enabled
+          ? EinkMode.surfaceColor(dark: appModel.isDarkMode)
+          : appModel.isDarkMode
+              ? const Color.fromARGB(255, 30, 30, 30)
+              : const Color.fromARGB(255, 229, 229, 229),
+      border: EinkMode.enabled
+          ? EinkMode.border(dark: appModel.isDarkMode)
+          : null,
       backdropColor: appModel.isDarkMode ? Colors.black : Colors.white,
       accentColor: theme.colorScheme.primary,
       scrollPadding: const EdgeInsets.only(top: 6, bottom: 56),
@@ -113,7 +118,7 @@ class _HomeDictionaryPageState<T extends BaseTabPage> extends BaseTabPageState {
       width: double.maxFinite,
       transition: SlideFadeFloatingSearchBarTransition(),
       automaticallyImplyBackButton: false,
-      progress: _isSearching,
+      progress: !EinkMode.enabled && _isSearching,
       onFocusChanged: (focused) => onFocusChanged(focused: focused),
       onQueryChanged: onQueryChanged,
       onSubmitted: search,
