@@ -24,6 +24,7 @@ therefore works against the device.
 | 2 | Kill route transitions, ripples and scroll animations app-wide | S | High |
 | 3 | Pure black/white high-contrast theme | M | High |
 | 4 | Dictionary popup without translucency, colours or blur | S | High |
+| 4a | Quick-action "already in Anki / stash" state shown by shape, not red | S | High |
 | 5 | Static loading indicators | S | Medium |
 | 6 | Reader page turns without animation (ttu and Mokuro) | S–M | High |
 | 7 | Tap-zone page turning in readers | M | High |
@@ -124,9 +125,10 @@ stays available, because some users prefer white-on-black on e-ink. A dark
 variant of the same theme just swaps black and white.
 
 **Hard-coded colours to audit.** Search for `Colors.red`, `Colors.grey` and
-`Theme.of(context).unselectedWidgetColor`. The quick-action colours in
-`creator_model`/`quickActionColorProvider` and the tag colours in
-`JidoujishoTag` should fall back to black with a white label in e-ink mode.
+`Theme.of(context).unselectedWidgetColor`. Tag colours in `JidoujishoTag` can
+fall back to black with a white label in e-ink mode. Where colour encodes
+*state* rather than decoration, it must not simply be dropped; see
+section 4a for the quick-action buttons.
 
 ## 4. Dictionary popup
 
@@ -146,6 +148,74 @@ This is the most-used surface while reading.
     `background: rgba(255,0,0,0.6)` (`reader_ttu_source_page.dart`, in
     `javascriptToExecute`). Make it `background:#000;color:#fff` in e-ink mode.
     That one string can be parameterised from Dart.
+
+## 4a. Quick-action state: "already in Anki" and "in stash"
+
+The quick-action buttons under each dictionary heading change colour to show
+state:
+
+| Action | Turns red when | Code |
+|---|---|---|
+| Card creator | `checkForDuplicates(term)` finds the term in the note types selected for duplicate checking (`duplicateCheckModels`, via the AnkiDroid method channel) | `card_creator_action.dart:112` |
+| Instant export | same duplicate check | `instant_export_action.dart:143` |
+| Add to stash | the term is already in the stash | `add_to_stash_action.dart:24` |
+
+`quickActionColorProvider` (`app_model.dart:100`) collects these
+`getIconColor()` results. `dictionary_term_page.dart:255-266` renders them only
+as the icon tint, with `colors[key] ?? (dark ? white : black)`, on a
+`black.withOpacity(0.05)` background.
+
+**Why this fails on e-ink.** `Colors.red` (#F44336) has a luminance of about
+0.3. On a 16-level greyscale panel it renders as a dark-to-mid grey, and at
+icon size next to black icons it is very hard to tell apart from "not added".
+The 5 % background tint disappears completely. Dropping the colour, as a plain
+black/white theme would, removes the signal outright. Either way the user can
+no longer see that a word is already mined, which is one of the most
+useful signals while reading.
+
+**Proposal: carry the state, not a colour.**
+
+1. Give `QuickAction` a semantic state, and derive the colour from it, so
+   colour themes look exactly as they do today:
+
+   ```dart
+   /// Whether this action is already "done" for [heading]
+   /// (e.g. the term exists in Anki or is in the stash).
+   Future<bool> isActive({required AppModel appModel,
+                          required DictionaryHeading heading}) async => false;
+
+   Future<Color?> getIconColor({...}) async =>
+       await isActive(appModel: appModel, heading: heading) ? Colors.red : null;
+   ```
+
+   The three actions above then override `isActive` instead of
+   `getIconColor`. The provider becomes `quickActionStateProvider`
+   (`Map<String, bool>`), and the colour is resolved at render time.
+
+2. In e-ink mode, render the active state by **shape and fill**:
+   - **Inactive:** black icon on white, with a 1 px black outline (the outline
+     replaces the invisible 5 % tint).
+   - **Active:** **inverted**, a solid black square with a white icon. That
+     is maximum contrast, visible from the corner of the eye, and unambiguous
+     on any panel. On the dark e-ink theme, use a white square with a black
+     icon.
+   - Optionally add a second, non-fill cue for redundancy, such as a small
+     ✓ badge in the corner, or a filled/outlined icon pair
+     (`Icons.note_add` / `Icons.note_add_outlined`).
+   - Append "(already in Anki)" or "(in stash)" to the tooltip and semantics
+     label. This also helps screen-reader users on any theme.
+
+3. Keep the update cheap. After an action runs, the page already invalidates
+   the provider (`dictionary_term_page.dart:283`), so only that button flips.
+   That is a single small partial refresh, which suits e-ink. Avoid animating
+   the transition, for example with `AnimatedContainer`.
+
+4. **Optional.** Let the user pick the active-state colour in colour themes
+   (red by default). Some users read red as "error" rather than "done".
+
+Effort: under a day. The change touches `quick_action.dart`, the three action
+classes, the provider in `app_model.dart` and `buildRow` in
+`dictionary_term_page.dart`. No stored data changes.
 
 ## 5. Loading indicators
 
@@ -265,7 +335,8 @@ it silently.
 ## Suggested order
 
 1. Items 1, 2, 5 and 8: an afternoon, and immediately noticeable.
-2. Items 3, 4 and 10: the theme work.
+2. Items 3, 4, 4a and 10: the theme work. Do 4a together with 3, so the
+   "already in Anki" signal is never lost.
 3. Items 6 and 7: reader-specific changes, best done together with the native
    Mokuro reader if that goes ahead.
 4. Items 9 and 12 last, because they are device-specific.
