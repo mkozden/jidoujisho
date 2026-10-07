@@ -1,4 +1,4 @@
-const h=location.pathname.split("/").slice(0,-1).join("/"),U=[h+"/",h+"/auth",h+"/b",h+"/manage",h+"/settings",h+"/statistics"],g="1791394830821";/**
+const h=location.pathname.split("/").slice(0,-1).join("/"),U=[h+"/",h+"/auth",h+"/b",h+"/manage",h+"/settings",h+"/statistics"],g="1791396015887";/**
  * @license BSD-3-Clause
  * Copyright (c) 2026, ッツ Reader Authors
  * All rights reserved.

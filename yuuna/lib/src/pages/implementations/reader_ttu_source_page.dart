@@ -253,23 +253,11 @@ class _ReaderTtuSourcePageState extends BaseSourcePageState<ReaderTtuSourcePage>
     return selectedText;
   }
 
-  /// Whether the bundled reader changed since it was last opened. Cached
-  /// pages from an older bundle reference assets that no longer exist, so the
-  /// WebView cache is cleared once in that case.
-  late final bool _ttuVersionChanged = () {
-    if (mediaSource.currentTtuInternalVersion ==
-        ReaderTtuSource.ttuInternalVersion) {
-      return false;
-    }
-    mediaSource.setTtuInternalVersion();
-    return true;
-  }();
-
-  CacheMode get cacheMode {
-    return _ttuVersionChanged
-        ? CacheMode.LOAD_NO_CACHE
-        : CacheMode.LOAD_CACHE_ELSE_NETWORK;
-  }
+  /// The reader is served from the APK, so the WebView follows the cache
+  /// headers set by [LocalWebAssetsServer]: pages are always revalidated and
+  /// only content-hashed build files are cached. This way pages cached from a
+  /// previously bundled reader version are never served.
+  CacheMode get cacheMode => CacheMode.LOAD_DEFAULT;
 
   createFileFromBase64(String base64Content) async {
     var bytes = base64Decode(base64Content.replaceAll('\n', ''));
@@ -309,7 +297,6 @@ class _ReaderTtuSourcePageState extends BaseSourcePageState<ReaderTtuSourcePage>
         scrollbarFadingEnabled: false,
         appCachePath: appModel.browserDirectory.path,
         cacheMode: cacheMode,
-        clearCache: _ttuVersionChanged,
         supportMultipleWindows: true,
       ),
       contextMenu: contextMenu,

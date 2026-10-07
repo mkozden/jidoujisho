@@ -105,9 +105,15 @@ class LocalWebAssetsServer {
         HttpHeaders.contentTypeHeader,
         _contentTypes[extension] ?? 'application/octet-stream',
       );
-      if (servedPath == 'service-worker.js') {
-        response.headers.set('Service-Worker-Allowed', '/');
-      }
+      // Build files have content hashes in their names and never change, but
+      // pages and other files must be revalidated so a new app version never
+      // serves stale ones from the WebView cache.
+      response.headers.set(
+        HttpHeaders.cacheControlHeader,
+        servedPath.startsWith('_app/immutable/')
+            ? 'public, max-age=31536000, immutable'
+            : 'no-cache',
+      );
       response.headers.contentLength = data.lengthInBytes;
       if (request.method == 'GET') {
         response.add(

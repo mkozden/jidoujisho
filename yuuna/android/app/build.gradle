@@ -25,10 +25,10 @@ apply plugin: 'com.android.application'
 apply plugin: 'kotlin-android'
 apply from: "$flutterRoot/packages/flutter_tools/gradle/flutter.gradle"
 
-// Builds with yuuna.sideBySide=true (see gradle.properties) use a different
+// Builds with yuunaSideBySide=true (see gradle.properties) use a different
 // package name and launcher label, so they install next to the original app
 // instead of replacing it.
-def sideBySide = (project.findProperty('yuuna.sideBySide') ?: 'false').toString().toBoolean()
+def sideBySide = (project.findProperty('yuunaSideBySide') ?: 'false').toString().toBoolean()
 
 android {
     compileSdkVersion 34

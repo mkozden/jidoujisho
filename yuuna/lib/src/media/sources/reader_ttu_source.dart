@@ -80,18 +80,19 @@ class ReaderTtuSource extends ReaderMediaSource {
     return 'idb_${getPortForLanguage(language)}';
   }
 
-  /// Package name of the original app, which owns the default ports.
-  static const String _originalPackageName = 'app.arianneorpilla.yuuna';
+  /// Package name of the build that installs alongside the original app
+  /// (`yuunaSideBySide` in android/gradle.properties).
+  static const String _sideBySidePackageName = 'app.arianneorpilla.yuuna.plus';
 
-  /// Added to the ports of builds with another package name, so that a build
-  /// installed alongside the original app can serve its reader at the same
-  /// time without a port conflict.
+  /// Added to the ports of the side-by-side build, so that it can serve its
+  /// reader while the original app is running. Every other build keeps the
+  /// original ports, as web storage is scoped to the origin.
   int _portOffset = 0;
 
   @override
   Future<void> prepareResources() async {
     final packageInfo = await PackageInfo.fromPlatform();
-    _portOffset = packageInfo.packageName == _originalPackageName ? 0 : 100;
+    _portOffset = packageInfo.packageName == _sideBySidePackageName ? 100 : 0;
   }
 
   /// Get the port for the current language. This port should ideally not conflict but should remain the same for
@@ -685,24 +686,4 @@ indexedDB.databases().then((databases) => {
   }
 });
 ''';
-
-  /// This ensures that the internal version included with the app always uses
-  /// the cache and is consistent. If this version changes and the current stored
-  /// last version mismatches, a load from network is forced. The app will then
-  /// update its new last version, and all new loads will be from the cache
-  /// unless there is a new app version loaded with a different internal version.
-  static const ttuInternalVersion = 3;
-
-  /// Used to check for the current version.
-  int? get currentTtuInternalVersion {
-    return getPreference<int?>(key: 'ttu_internal_version', defaultValue: null);
-  }
-
-  /// Sets the new version.
-  void setTtuInternalVersion() async {
-    await setPreference<int?>(
-      key: 'ttu_internal_version',
-      value: ttuInternalVersion,
-    );
-  }
 }

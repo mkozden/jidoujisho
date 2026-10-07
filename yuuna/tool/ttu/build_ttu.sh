@@ -9,8 +9,7 @@
 #   git -C yuuna/third_party/ttu-ebook-reader fetch origin
 #   git -C yuuna/third_party/ttu-ebook-reader checkout <commit>
 #   bash yuuna/tool/ttu/build_ttu.sh
-# then commit the submodule pointer and the regenerated assets together, and
-# bump ReaderTtuSource.ttuInternalVersion so WebView caches are refreshed.
+# then commit the submodule pointer and the regenerated assets together.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -24,6 +23,13 @@ if [ ! -e "$SRC_DIR/package.json" ]; then
 fi
 
 COMMIT="$(git -C "$SRC_DIR" rev-parse HEAD)"
+if [ -n "$(git -C "$SRC_DIR" status --porcelain)" ]; then
+  echo "warning: $SRC_DIR has local changes; they are not part of the build" >&2
+fi
+PINNED="$(git -C "$APP_DIR" ls-tree HEAD third_party/ttu-ebook-reader | awk '{print $3}')"
+if [ -n "$PINNED" ] && [ "$PINNED" != "$COMMIT" ]; then
+  echo "note: building $COMMIT, which differs from the pinned $PINNED" >&2
+fi
 WORK_DIR="$(mktemp -d)"
 trap 'rm -rf "$WORK_DIR"' EXIT
 
@@ -67,7 +73,7 @@ cp -R "$BUILD_DIR"/. "$OUT_DIR"/
 missing=0
 while IFS= read -r dir; do
   rel="assets/ttu-ebook-reader${dir#"$OUT_DIR"}/"
-  if ! grep -qF -- "- $rel" "$APP_DIR/pubspec.yaml"; then
+  if ! sed 's/[[:space:]]*$//' "$APP_DIR/pubspec.yaml" | grep -qxF -- "    - $rel"; then
     echo "pubspec.yaml is missing asset directory: $rel" >&2
     missing=1
   fi

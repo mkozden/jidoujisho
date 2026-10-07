@@ -79,7 +79,7 @@ Most of the motion comes from a few places, so this is cheap.
   `jumpTo` in e-ink mode.
 - **Fades.**
   - `FadeInImage` in the history grids (`history_reader_page.dart`,
-    `history_player_page.dart`, `media_item_dialog_page.dart`,
+    `history_player_page.dart`, `browser_history_page.dart`, `media_item_dialog_page.dart`,
     `immersion_kit_sentences_dialog_page.dart`): set `fadeInDuration` and
     `fadeOutDuration` to `Duration.zero`.
   - `AnimatedOpacity` in `browser_source_page.dart` and `player_source_page.dart`:
