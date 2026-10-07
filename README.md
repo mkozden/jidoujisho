@@ -13,45 +13,24 @@ to this fork too, except for the changes below.
 
 ## What this fork changes
 
-- **Updated ッツ Ebook Reader.** The bundled reader is upgraded from an April 2023
-  build to [ttu-ttu/ebook-reader](https://github.com/ttu-ttu/ebook-reader) `301aef49`
-  (September 2026). This brings custom themes, reading statistics, and a fix for
-  bookmarks drifting off the page start after rotating the screen or resizing the
-  reader. Existing libraries, progress and reader settings carry over. The reader is
-  pinned as a git submodule and rebuilt with a script; see
-  [`yuuna/tool/ttu/README.md`](yuuna/tool/ttu/README.md).
-- **E-ink mode** for black-and-white e-readers. Turn it on from the home screen menu.
-  It switches to a pure black-and-white theme, removes animations, and uses static
-  loading indicators. It also makes the dictionary pop-up opaque, with slightly larger
-  text, and shows "already in Anki" by inverting the button instead of turning it red.
-  In the ebook reader it adds black-and-white "E-ink" themes, since the default theme
-  draws text in grey. Details:
-  [`analysis/eink_qol_improvements.md`](analysis/eink_qol_improvements.md).
-- **Installs alongside the original app** as "jidoujisho+"
-  (`app.arianneorpilla.yuuna.plus`) with its own data. Release builds are signed with
-  the build machine's debug key, so they cannot update an install signed elsewhere. To
-  build the original package name instead, set `yuunaSideBySide=false` in
-  `yuuna/android/gradle.properties`.
-- **Smaller APK.** Only the native libraries for the targeted CPU architectures are
-  packaged. The arm64 APK is about 200 MB instead of about 470 MB.
-- **Analysis reports** in [`analysis/`](analysis): e-ink improvements, and the
-  feasibility of a built-in Mokuro (`.mokuro`) reader.
+- **Updated ッツ Ebook Reader** to the current
+  [upstream version](https://github.com/ttu-ttu/ebook-reader), bundled as a git
+  submodule (see [`yuuna/tool/ttu/README.md`](yuuna/tool/ttu/README.md)). Existing
+  libraries, progress and reader settings carry over.
+- **E-ink mode** for black-and-white e-readers, enabled from the home screen menu: a
+  pure black-and-white theme without animations, an opaque dictionary pop-up with
+  slightly larger text, and black-and-white themes for the ebook reader.
+- **Installs as a separate app**, "jidoujisho+", so it doesn't replace the original.
 
 ## Building
 
-The APK is built by the GitHub Actions workflow (Flutter 3.13.5, JDK 11) and attached
-to each run as the `jidoujisho-apk` artifact. To build locally:
+The GitHub Actions workflow builds the APK and attaches it to each run as the
+`jidoujisho-apk` artifact. To build locally:
 
 ```sh
 cd yuuna
 flutter pub get
 flutter build apk --target-platform=android-arm64
-```
-
-Build the original package name without editing files:
-
-```sh
-env ORG_GRADLE_PROJECT_yuunaSideBySide=false flutter build apk --target-platform=android-arm64
 ```
 
 ## Contribution and attribution
