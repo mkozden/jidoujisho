@@ -143,7 +143,12 @@ class ReaderLyricsSource extends ReaderMediaSource {
       initialSettings: InAppWebViewSettings(
         userAgent: userAgent,
         blockNetworkImage: true,
+        // Without this, Android kills the app if the WebView renderer dies.
+        useOnRenderProcessGone: true,
       ),
+      onRenderProcessGone: (controller, detail) {
+        webViewBusy = false;
+      },
       initialUrlRequest: URLRequest(
         url: WebUri(searchUrl),
       ),
@@ -185,7 +190,12 @@ class ReaderLyricsSource extends ReaderMediaSource {
         initialSettings: InAppWebViewSettings(
           userAgent: userAgent,
           blockNetworkImage: true,
+          // Without this, Android kills the app if the WebView renderer dies.
+          useOnRenderProcessGone: true,
         ),
+        onRenderProcessGone: (controller, detail) {
+          googleWebViewBusy = false;
+        },
         initialUrlRequest: URLRequest(
           url: WebUri(
               'https://google.com/search?q=$artist+$title+歌詞+site:uta-net.com/song'),
@@ -211,7 +221,12 @@ class ReaderLyricsSource extends ReaderMediaSource {
           initialSettings: InAppWebViewSettings(
             userAgent: userAgent,
             blockNetworkImage: true,
+            // Without this, Android kills the app if the WebView renderer dies.
+            useOnRenderProcessGone: true,
           ),
+          onRenderProcessGone: (controller, detail) {
+            utanetWebViewBusy = false;
+          },
           initialUrlRequest: URLRequest(
             url: WebUri(firstResultUrl!),
           ),

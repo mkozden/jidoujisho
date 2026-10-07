@@ -96,7 +96,14 @@ class BingImagesSearchEnhancement extends ImageEnhancement {
             "https://www.bing.com/images/search?q=$searchTerm')",
           ),
         ),
-        initialSettings: InAppWebViewSettings(blockNetworkImage: true),
+        initialSettings: InAppWebViewSettings(
+          blockNetworkImage: true,
+          // Without this, Android kills the app if the WebView renderer dies.
+          useOnRenderProcessGone: true,
+        ),
+        onRenderProcessGone: (controller, detail) {
+          webViewBusy = false;
+        },
         onLoadStop: (controller, uri) async {
           Directory appDirDoc = await getApplicationSupportDirectory();
           String bingImagesPath = '${appDirDoc.path}/bingImages';

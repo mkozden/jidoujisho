@@ -61,6 +61,27 @@ class _BrowserSourcePageState extends BaseSourcePageState<BrowserSourcePage> {
 
   late InAppWebViewController _controller;
 
+  /// Replaced to recreate the WebView after its renderer process is gone.
+  Key _webViewKey = UniqueKey();
+
+  /// The last page shown, reopened when the WebView is recreated.
+  WebUri? _lastUrl;
+
+  /// The WebView renderer can be killed, for example under memory pressure.
+  /// Handling this keeps Android from closing the whole app; the page is
+  /// recreated on the URL it last showed instead.
+  void onRenderProcessGone(
+      InAppWebViewController controller, RenderProcessGoneDetail detail) {
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      _controllerInitialised = false;
+      _webViewKey = UniqueKey();
+    });
+  }
+
   ReaderBrowserSource get mediaSource => ReaderBrowserSource.instance;
 
   DateTime? lastMessageTime;
@@ -473,10 +494,17 @@ class _BrowserSourcePageState extends BaseSourcePageState<BrowserSourcePage> {
         scrollX = newX;
         scrollY = newY;
       },
+      key: _webViewKey,
       initialSettings: InAppWebViewSettings(
         userAgent: userAgent,
+        useOnRenderProcessGone: true,
       ),
-      initialUrlRequest: URLRequest(url: WebUri(widget.item!.mediaIdentifier)),
+      initialUrlRequest: URLRequest(
+          url: _lastUrl ?? WebUri(widget.item!.mediaIdentifier)),
+      onRenderProcessGone: onRenderProcessGone,
+      onUpdateVisitedHistory: (controller, url, isReload) {
+        _lastUrl = url ?? _lastUrl;
+      },
       contextMenu: contextMenu,
       onConsoleMessage: onConsoleMessage,
       onWebViewCreated: (controller) {

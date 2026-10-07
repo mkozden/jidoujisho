@@ -117,7 +117,7 @@ public class MainActivity extends AudioServiceActivity {
                 continue;
             }
             List<NoteInfo> notes = api.findDuplicateNotes(mid, key);
-            if (!notes.isEmpty()) {
+            if (notes != null && !notes.isEmpty()) {
                 return true;
             }
         }
@@ -167,68 +167,87 @@ public class MainActivity extends AudioServiceActivity {
 
                     final AddContentApi api = new AddContentApi(context);
 
-                    switch (call.method) {
-                        case "addNote":
-                            addNote(model, deck, fields, tags);
-                            result.success("Added note");
-                            break;
-                        case "checkForDuplicates":
-                            if (mAnkiDroid.shouldRequestPermission()) {
-                                result.success(false);
-                                return;
-                            } else {
-                                new Handler(Looper.getMainLooper()).post(new Runnable() {
-                                @Override
-                                public void run() {
-                                    result.success(checkForDuplicates(models, key));
+                    // AnkiDroid API calls throw when AnkiDroid is missing,
+                    // busy or returns no data. Report that to Dart instead of
+                    // letting the exception close the app.
+                    try {
+                        switch (call.method) {
+                            case "addNote":
+                                addNote(model, deck, fields, tags);
+                                result.success("Added note");
+                                break;
+                            case "checkForDuplicates":
+                                if (mAnkiDroid.shouldRequestPermission()) {
+                                    result.success(false);
+                                    return;
+                                } else {
+                                    new Handler(Looper.getMainLooper()).post(new Runnable() {
+                                    @Override
+                                    public void run() {
+                                        // This runs later, outside the surrounding
+                                        // try, where an uncaught exception would
+                                        // close the app, so a failed check
+                                        // reports no duplicate instead.
+                                        boolean hasDuplicates;
+                                        try {
+                                            hasDuplicates = checkForDuplicates(models, key);
+                                        } catch (Exception e) {
+                                            e.printStackTrace();
+                                            hasDuplicates = false;
+                                        }
+                                        result.success(hasDuplicates);
+                                    }
+                                    });
                                 }
-                                });
-                            }
-                            break;
-                        case "getDecks":
-                            result.success(api.getDeckList());
-                            break;
-                        case "getModelList":
-                            result.success(api.getModelList());
-                            break;
-                        case "getFieldList":
-                            Long mid = mAnkiDroid.findModelIdByName(model, 1);
-                            result.success(Arrays.asList(api.getFieldList(mid)));
-                            break;
-                        case "addDefaultModel":
-                            addDefaultModel();
-                            break;
-                        case "requestAnkidroidPermissions":
-                            if (mAnkiDroid.shouldRequestPermission()) {
-                                mAnkiDroid.requestPermission(MainActivity.this, AD_PERM_REQUEST);
-                            }
-                            result.success(true);
-                            break;
-                        case "addFileToMedia":
-                            System.out.println(filename);
-                            System.out.println(preferredName);
-                            System.out.println(mimeType);
+                                break;
+                            case "getDecks":
+                                result.success(api.getDeckList());
+                                break;
+                            case "getModelList":
+                                result.success(api.getModelList());
+                                break;
+                            case "getFieldList":
+                                Long mid = mAnkiDroid.findModelIdByName(model, 1);
+                                result.success(Arrays.asList(api.getFieldList(mid)));
+                                break;
+                            case "addDefaultModel":
+                                addDefaultModel();
+                                break;
+                            case "requestAnkidroidPermissions":
+                                if (mAnkiDroid.shouldRequestPermission()) {
+                                    mAnkiDroid.requestPermission(MainActivity.this, AD_PERM_REQUEST);
+                                }
+                                result.success(true);
+                                break;
+                            case "addFileToMedia":
+                                System.out.println(filename);
+                                System.out.println(preferredName);
+                                System.out.println(mimeType);
 
-                            // Workaround from KamWithK
-                            // https://github.com/ankidroid/Anki-Android/issues/10335
+                                // Workaround from KamWithK
+                                // https://github.com/ankidroid/Anki-Android/issues/10335
   
-                            File file = new File(filename);
+                                File file = new File(filename);
 
-                            Uri file_uri = FileProvider.getUriForFile(context, BuildConfig.APPLICATION_ID + ".provider", file);
-                            context.grantUriPermission("com.ichi2.anki", file_uri, Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                                Uri file_uri = FileProvider.getUriForFile(context, BuildConfig.APPLICATION_ID + ".provider", file);
+                                context.grantUriPermission("com.ichi2.anki", file_uri, Intent.FLAG_GRANT_READ_URI_PERMISSION);
 
-                            ContentValues contentValues = new ContentValues();
-                            contentValues.put(FlashCardsContract.AnkiMedia.FILE_URI, file_uri.toString());
-                            contentValues.put(FlashCardsContract.AnkiMedia.PREFERRED_NAME, preferredName);
+                                ContentValues contentValues = new ContentValues();
+                                contentValues.put(FlashCardsContract.AnkiMedia.FILE_URI, file_uri.toString());
+                                contentValues.put(FlashCardsContract.AnkiMedia.PREFERRED_NAME, preferredName);
 
-                            ContentResolver contentResolver = context.getContentResolver();
-                            Uri returnUri = contentResolver.insert(FlashCardsContract.AnkiMedia.CONTENT_URI, contentValues);
+                                ContentResolver contentResolver = context.getContentResolver();
+                                Uri returnUri = contentResolver.insert(FlashCardsContract.AnkiMedia.CONTENT_URI, contentValues);
 
-                            result.success(new File(returnUri.getPath()).toString().substring(1));
+                                result.success(new File(returnUri.getPath()).toString().substring(1));
 
-                            break;
-                        default:
-                            result.notImplemented();
+                                break;
+                            default:
+                                result.notImplemented();
+                        }
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                        result.error("ANKIDROID_ERROR", e.toString(), null);
                     }
                 }
             );

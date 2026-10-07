@@ -38,6 +38,27 @@ class _MokuroCatalogBrowsePageState
   bool _controllerInitialised = false;
 
   late InAppWebViewController _controller;
+
+  /// Replaced to recreate the WebView after its renderer process is gone.
+  Key _webViewKey = UniqueKey();
+
+  /// The last page shown, reopened when the WebView is recreated.
+  WebUri? _lastUrl;
+
+  /// The WebView renderer can be killed, for example under memory pressure.
+  /// Handling this keeps Android from closing the whole app; the page is
+  /// recreated on the URL it last showed instead.
+  void onRenderProcessGone(
+      InAppWebViewController controller, RenderProcessGoneDetail detail) {
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      _controllerInitialised = false;
+      _webViewKey = UniqueKey();
+    });
+  }
   MediaItem? _mediaItem;
 
   ReaderMokuroSource get mediaSource => ReaderMokuroSource.instance;
@@ -322,13 +343,20 @@ class _MokuroCatalogBrowsePageState
 
   Widget buildBody() {
     return InAppWebView(
+      key: _webViewKey,
       initialSettings: InAppWebViewSettings(
         verticalScrollBarEnabled: false,
         horizontalScrollBarEnabled: false,
         initialScale: MediaQuery.of(context).size.width ~/ 1.5,
+        useOnRenderProcessGone: true,
       ),
       initialUrlRequest: URLRequest(
-          url: WebUri(widget.catalog?.url ?? widget.item!.mediaIdentifier)),
+          url: _lastUrl ??
+              WebUri(widget.catalog?.url ?? widget.item!.mediaIdentifier)),
+      onRenderProcessGone: onRenderProcessGone,
+      onUpdateVisitedHistory: (controller, url, isReload) {
+        _lastUrl = url ?? _lastUrl;
+      },
       contextMenu: contextMenu,
       onConsoleMessage: onConsoleMessage,
       onWebViewCreated: (controller) {

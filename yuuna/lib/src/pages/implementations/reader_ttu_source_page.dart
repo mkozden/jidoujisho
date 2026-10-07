@@ -34,6 +34,12 @@ class _ReaderTtuSourcePageState extends BaseSourcePageState<ReaderTtuSourcePage>
   bool _controllerInitialised = false;
   late InAppWebViewController _controller;
 
+  /// Replaced to recreate the WebView after its renderer process is gone.
+  Key _webViewKey = UniqueKey();
+
+  /// The last page the reader showed, reopened when the WebView is recreated.
+  WebUri? _lastUrl;
+
   DateTime? lastMessageTime;
   Orientation? lastOrientation;
 
@@ -288,14 +294,35 @@ class _ReaderTtuSourcePageState extends BaseSourcePageState<ReaderTtuSourcePage>
     Fluttertoast.showToast(msg: t.file_downloaded(name: _suggestedFilename));
   }
 
+  /// The WebView renderer can be killed, for example under memory pressure.
+  /// Handling this keeps Android from closing the whole app; the reader is
+  /// recreated on the page it last showed instead.
+  void onRenderProcessGone(
+      InAppWebViewController controller, RenderProcessGoneDetail detail) {
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      _controllerInitialised = false;
+      _webViewKey = UniqueKey();
+    });
+  }
+
   Widget buildReaderArea(LocalWebAssetsServer server) {
     return InAppWebView(
+      key: _webViewKey,
       initialUrlRequest: URLRequest(
-        url: WebUri(
-          widget.item?.mediaIdentifier ??
-              'http://localhost:${server.boundPort}/manage.html',
-        ),
+        url: _lastUrl ??
+            WebUri(
+              widget.item?.mediaIdentifier ??
+                  'http://localhost:${server.boundPort}/manage.html',
+            ),
       ),
+      onRenderProcessGone: onRenderProcessGone,
+      onUpdateVisitedHistory: (controller, url, isReload) {
+        _lastUrl = url ?? _lastUrl;
+      },
       onPermissionRequest: (controller, origin) async {
         return PermissionResponse(
           action: PermissionResponseAction.GRANT,
@@ -318,6 +345,7 @@ class _ReaderTtuSourcePageState extends BaseSourcePageState<ReaderTtuSourcePage>
         appCachePath: appModel.browserDirectory.path,
         cacheMode: cacheMode,
         supportMultipleWindows: true,
+        useOnRenderProcessGone: true,
       ),
       contextMenu: contextMenu,
       onConsoleMessage: onConsoleMessage,
@@ -365,8 +393,14 @@ class _ReaderTtuSourcePageState extends BaseSourcePageState<ReaderTtuSourcePage>
                     appCachePath: appModel.browserDirectory.path,
                     cacheMode: cacheMode,
                     supportMultipleWindows: true,
+                    useOnRenderProcessGone: true,
                   ),
                   windowId: createWindowRequest.windowId,
+                  onRenderProcessGone: (controller, detail) {
+                    if (mounted) {
+                      Navigator.pop(context);
+                    }
+                  },
                   onDownloadStartRequest: onDownloadStartRequest,
                   onCloseWindow: (controller) {
                     if (mounted) {
