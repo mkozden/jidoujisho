@@ -2,7 +2,7 @@ name: Build Android APK
 on:
   push:
     branches: ['main', 'claude/**']
-    paths: ['yuuna/**']
+    paths: ['yuuna/**', '.github/workflows/main.yml']
   pull_request:
     branches: ['main']
     paths: ['yuuna/**']
