@@ -57,6 +57,26 @@ android {
             applicationIdSuffix ".plus"
         }
         manifestPlaceholders += [appLabel: sideBySide ? "jidoujisho+" : "jidoujisho"]
+
+        // Plugins such as VLC and FFmpeg ship native libraries for every ABI.
+        // Only package the ABIs Flutter builds for (--target-platform); ABI
+        // splits (--split-per-abi) already filter them and conflict with this.
+        def targetPlatforms = project.findProperty('target-platform')
+        def splitPerAbi = (project.findProperty('split-per-abi') ?: 'false').toString().toBoolean()
+        if (targetPlatforms && !splitPerAbi) {
+            def platformAbis = [
+                'android-arm'  : 'armeabi-v7a',
+                'android-arm64': 'arm64-v8a',
+                'android-x86'  : 'x86',
+                'android-x64'  : 'x86_64',
+            ]
+            def abis = targetPlatforms.toString().split(',').collect { platformAbis[it.trim()] }.findAll { it }
+            if (abis) {
+                ndk {
+                    abiFilters.addAll(abis)
+                }
+            }
+        }
     }
 
     buildTypes {
