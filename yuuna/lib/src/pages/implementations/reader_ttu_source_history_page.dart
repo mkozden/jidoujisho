@@ -3,7 +3,6 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:local_assets_server/local_assets_server.dart';
 import 'package:yuuna/media.dart';
 import 'package:yuuna/pages.dart';
 import 'package:yuuna/utils.dart';
@@ -37,7 +36,7 @@ class _ReaderTtuSourceHistoryPageState<T extends HistoryReaderPage>
 
   @override
   Widget build(BuildContext context) {
-    AsyncValue<LocalAssetsServer> server =
+    AsyncValue<LocalWebAssetsServer> server =
         ref.watch(ttuServerProvider(appModel.targetLanguage));
 
     return server.when(
@@ -81,7 +80,7 @@ class _ReaderTtuSourceHistoryPageState<T extends HistoryReaderPage>
         });
   }
 
-  Widget buildData(LocalAssetsServer server) {
+  Widget buildData(LocalWebAssetsServer server) {
     AsyncValue<List<MediaItem>> books =
         ref.watch(ttuBooksProvider(appModel.targetLanguage));
 

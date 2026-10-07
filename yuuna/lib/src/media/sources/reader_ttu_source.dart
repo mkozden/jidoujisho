@@ -7,8 +7,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:flutter_logs/flutter_logs.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:local_assets_server/local_assets_server.dart';
 import 'package:material_floating_search_bar/material_floating_search_bar.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:yuuna/language.dart';
 import 'package:yuuna/media.dart';
 import 'package:yuuna/models.dart';
@@ -17,7 +17,7 @@ import 'package:yuuna/utils.dart';
 
 /// A global [Provider] for serving a local ッツ Ebook Reader.
 final ttuServerProvider =
-    FutureProvider.family<LocalAssetsServer, Language>((ref, language) {
+    FutureProvider.family<LocalWebAssetsServer, Language>((ref, language) {
   return ReaderTtuSource.instance.serveLocalAssets(language);
 });
 
@@ -80,14 +80,28 @@ class ReaderTtuSource extends ReaderMediaSource {
     return 'idb_${getPortForLanguage(language)}';
   }
 
+  /// Package name of the original app, which owns the default ports.
+  static const String _originalPackageName = 'app.arianneorpilla.yuuna';
+
+  /// Added to the ports of builds with another package name, so that a build
+  /// installed alongside the original app can serve its reader at the same
+  /// time without a port conflict.
+  int _portOffset = 0;
+
+  @override
+  Future<void> prepareResources() async {
+    final packageInfo = await PackageInfo.fromPlatform();
+    _portOffset = packageInfo.packageName == _originalPackageName ? 0 : 100;
+  }
+
   /// Get the port for the current language. This port should ideally not conflict but should remain the same for
   /// caching purposes.
   int getPortForLanguage(Language language) {
     /// Language Customizable
     if (language is JapaneseLanguage) {
-      return 52059;
+      return 52059 + _portOffset;
     } else if (language is EnglishLanguage) {
-      return 52060;
+      return 52060 + _portOffset;
     }
 
     throw UnimplementedError();
@@ -98,7 +112,7 @@ class ReaderTtuSource extends ReaderMediaSource {
   bool _lastServeFailed = false;
 
   /// For serving the reader assets locally.
-  Future<LocalAssetsServer> serveLocalAssets(Language language) async {
+  Future<LocalWebAssetsServer> serveLocalAssets(Language language) async {
     int port = getPortForLanguage(language);
 
     if (_lastServeFailed) {
@@ -107,11 +121,10 @@ class ReaderTtuSource extends ReaderMediaSource {
 
     try {
       _lastServeFailed = false;
-      final server = LocalAssetsServer(
+      final server = LocalWebAssetsServer(
         address: InternetAddress.loopbackIPv4,
         port: port,
         assetsBasePath: 'assets/ttu-ebook-reader',
-        logger: const DebugLogger(),
       );
 
       await server.serve();
@@ -678,7 +691,7 @@ indexedDB.databases().then((databases) => {
   /// last version mismatches, a load from network is forced. The app will then
   /// update its new last version, and all new loads will be from the cache
   /// unless there is a new app version loaded with a different internal version.
-  static const ttuInternalVersion = 2;
+  static const ttuInternalVersion = 3;
 
   /// Used to check for the current version.
   int? get currentTtuInternalVersion {

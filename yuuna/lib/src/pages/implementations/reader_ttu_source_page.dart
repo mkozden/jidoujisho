@@ -7,7 +7,6 @@ import 'package:flutter/services.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:fluttertoast/fluttertoast.dart';
-import 'package:local_assets_server/local_assets_server.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:spaces/spaces.dart';
 import 'package:yuuna/creator.dart';
@@ -172,7 +171,7 @@ class _ReaderTtuSourcePageState extends BaseSourcePageState<ReaderTtuSourcePage>
   }
 
   Widget buildBody() {
-    AsyncValue<LocalAssetsServer> server =
+    AsyncValue<LocalWebAssetsServer> server =
         ref.watch(ttuServerProvider(appModel.targetLanguage));
 
     return server.when(
@@ -254,14 +253,22 @@ class _ReaderTtuSourcePageState extends BaseSourcePageState<ReaderTtuSourcePage>
     return selectedText;
   }
 
-  CacheMode get cacheMode {
+  /// Whether the bundled reader changed since it was last opened. Cached
+  /// pages from an older bundle reference assets that no longer exist, so the
+  /// WebView cache is cleared once in that case.
+  late final bool _ttuVersionChanged = () {
     if (mediaSource.currentTtuInternalVersion ==
         ReaderTtuSource.ttuInternalVersion) {
-      return CacheMode.LOAD_CACHE_ELSE_NETWORK;
-    } else {
-      mediaSource.setTtuInternalVersion();
-      return CacheMode.LOAD_NO_CACHE;
+      return false;
     }
+    mediaSource.setTtuInternalVersion();
+    return true;
+  }();
+
+  CacheMode get cacheMode {
+    return _ttuVersionChanged
+        ? CacheMode.LOAD_NO_CACHE
+        : CacheMode.LOAD_CACHE_ELSE_NETWORK;
   }
 
   createFileFromBase64(String base64Content) async {
@@ -274,7 +281,7 @@ class _ReaderTtuSourcePageState extends BaseSourcePageState<ReaderTtuSourcePage>
     Fluttertoast.showToast(msg: t.file_downloaded(name: _suggestedFilename));
   }
 
-  Widget buildReaderArea(LocalAssetsServer server) {
+  Widget buildReaderArea(LocalWebAssetsServer server) {
     return InAppWebView(
       initialUrlRequest: URLRequest(
         url: WebUri(
@@ -302,6 +309,7 @@ class _ReaderTtuSourcePageState extends BaseSourcePageState<ReaderTtuSourcePage>
         scrollbarFadingEnabled: false,
         appCachePath: appModel.browserDirectory.path,
         cacheMode: cacheMode,
+        clearCache: _ttuVersionChanged,
         supportMultipleWindows: true,
       ),
       contextMenu: contextMenu,

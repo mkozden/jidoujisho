@@ -1,0 +1,32 @@
+diff --git a/apps/web/src/lib/data/database/books-db/factory.ts b/apps/web/src/lib/data/database/books-db/factory.ts
+index 0ec776af..fcbe8f89 100644
+--- a/apps/web/src/lib/data/database/books-db/factory.ts
++++ b/apps/web/src/lib/data/database/books-db/factory.ts
+@@ -56,14 +56,14 @@ export function createBooksDb(name = 'books') {
+         }
+         case 2: {
+           await upgradeBooksDbFromV2(oldDb, oldVersion, newVersion, transaction);
+-          break;
+         }
++        // falls through
+         case 3: {
+           oldDb.createObjectStore('storageSource', {
+             keyPath: 'name'
+           });
+-          break;
+         }
++        // falls through
+         case 4: {
+           const statisticsStore = oldDb.createObjectStore('statistic', {
+             keyPath: ['title', 'dateKey']
+@@ -81,9 +81,8 @@ export function createBooksDb(name = 'books') {
+           oldDb.createObjectStore('lastModified', {
+             keyPath: ['title', 'dataType']
+           });
+-
+-          break;
+         }
++        // falls through
+         case 5: {
+           oldDb.createObjectStore('audioBook', { keyPath: 'title' });
+ 
