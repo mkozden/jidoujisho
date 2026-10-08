@@ -27,24 +27,28 @@ jobs:
       working-directory: yuuna
     - name: Set up release signing
       env:
-        KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
-        KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
-        KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
-        KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        # Base64 of a PKCS12 keystore holding the key "jidoujisho", and its
+        # password (PKCS12 uses the same password for the key).
+        SIGNING_KEYSTORE: ${{ secrets.SIGNING_KEYSTORE }}
+        SIGNING_PASSWORD: ${{ secrets.SIGNING_PASSWORD }}
       run: |
-        if [ -z "$KEYSTORE_BASE64" ]; then
-          echo "::warning::No signing key secrets; the APK is signed with a random debug key and cannot update other builds."
+        if [ -z "$SIGNING_KEYSTORE" ] || [ -z "$SIGNING_PASSWORD" ]; then
+          echo "::warning::No SIGNING_KEYSTORE/SIGNING_PASSWORD secrets; the APK is signed with a random debug key and cannot update other builds."
           exit 0
         fi
-        echo "$KEYSTORE_BASE64" | base64 -d > yuuna/android/app/release.jks
+        echo "$SIGNING_KEYSTORE" | tr -d '[:space:]' | base64 -d > yuuna/android/app/release.p12
         {
-          echo "storeFile=release.jks"
-          echo "storePassword=$KEYSTORE_PASSWORD"
-          echo "keyAlias=$KEY_ALIAS"
-          echo "keyPassword=$KEY_PASSWORD"
+          echo "storeFile=release.p12"
+          echo "storePassword=$(echo "$SIGNING_PASSWORD" | tr -d '[:space:]')"
+          echo "keyAlias=jidoujisho"
+          echo "keyPassword=$(echo "$SIGNING_PASSWORD" | tr -d '[:space:]')"
         } > yuuna/android/key.properties
     - run: flutter build apk --target-platform=android-arm64
       working-directory: yuuna
+    - name: Show the signing certificate
+      run: |
+        apksigner="$(ls -d "$ANDROID_HOME"/build-tools/*/apksigner | sort -V | tail -1)"
+        "$apksigner" verify --print-certs yuuna/build/app/outputs/flutter-apk/*.apk | grep -i "SHA-256"
     - uses: actions/upload-artifact@v4
       with:
         name: jidoujisho-apk
