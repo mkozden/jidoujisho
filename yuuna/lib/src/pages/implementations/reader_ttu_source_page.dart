@@ -63,6 +63,7 @@ class _ReaderTtuSourcePageState extends BaseSourcePageState<ReaderTtuSourcePage>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     super.didChangeAppLifecycleState(state);
+    LookupLog.add('App state: ${state.name}');
 
     if (state == AppLifecycleState.resumed) {
       FocusScope.of(context).unfocus();
@@ -107,6 +108,8 @@ class _ReaderTtuSourcePageState extends BaseSourcePageState<ReaderTtuSourcePage>
   Widget build(BuildContext context) {
     Orientation orientation = MediaQuery.of(context).orientation;
     if (orientation != lastOrientation) {
+      LookupLog.add('Orientation: ${orientation.name}, '
+          'size ${MediaQuery.of(context).size}');
       if (_controllerInitialised) {
         clearDictionaryResult();
       }
@@ -129,6 +132,9 @@ class _ReaderTtuSourcePageState extends BaseSourcePageState<ReaderTtuSourcePage>
         if (ModalRoute.of(context)?.isCurrent ?? false) {
           if (mediaSource.volumePageTurningEnabled) {
             if (isDictionaryShown) {
+              LookupLog.add('Key event while the pop-up is open: '
+                  '${event.runtimeType} keyId=${event.logicalKey.keyId} '
+                  'label="${event.logicalKey.keyLabel}"');
               clearDictionaryResult();
               unselectWebViewTextSelection(_controller);
               mediaSource.clearCurrentSentence();
@@ -198,6 +204,8 @@ class _ReaderTtuSourcePageState extends BaseSourcePageState<ReaderTtuSourcePage>
     String currentTheme = (await _controller.evaluateJavascript(
             source: 'window.localStorage.getItem("theme")'))
         .toString();
+    Color? previousColor = appModel.overrideDictionaryColor;
+    ThemeData? previousTheme = appModel.overrideDictionaryTheme;
     switch (currentTheme) {
       case ReaderTtuSource.einkThemeName:
         appModel.setOverrideDictionaryTheme(appModel.theme);
@@ -245,7 +253,12 @@ class _ReaderTtuSourcePageState extends BaseSourcePageState<ReaderTtuSourcePage>
         break;
     }
 
-    if (mounted) {
+    // This runs on every page load and title change. An open pop-up is only
+    // closed when the reader theme actually changed its colours.
+    bool changed = previousColor != appModel.overrideDictionaryColor ||
+        previousTheme != appModel.overrideDictionaryTheme;
+    LookupLog.add('Reader theme: $currentTheme${changed ? ' (changed)' : ''}');
+    if (mounted && changed) {
       clearDictionaryResult();
       setState(() {});
     }
@@ -423,6 +436,7 @@ class _ReaderTtuSourcePageState extends BaseSourcePageState<ReaderTtuSourcePage>
         );
       },
       onLoadStop: (controller, uri) async {
+        LookupLog.add('Page loaded: $uri');
         if (mediaSource.adaptTtuTheme) {
           setDictionaryColors();
         }
@@ -431,6 +445,7 @@ class _ReaderTtuSourcePageState extends BaseSourcePageState<ReaderTtuSourcePage>
         Future.delayed(const Duration(seconds: 1), _focusNode.requestFocus);
       },
       onTitleChanged: (controller, title) async {
+        LookupLog.add('Page title changed: "$title"');
         await controller.evaluateJavascript(source: javascriptToExecute);
 
         if (mediaSource.adaptTtuTheme) {
@@ -476,8 +491,13 @@ class _ReaderTtuSourcePageState extends BaseSourcePageState<ReaderTtuSourcePage>
     ConsoleMessage message,
   ) async {
     DateTime now = DateTime.now();
+    bool isLookup = message.message.contains('"jidoujisho-message-type"');
     if (lastMessageTime != null &&
         now.difference(lastMessageTime!) < consoleMessageDebounce) {
+      if (isLookup) {
+        LookupLog.add('Tap message ignored (within '
+            '${consoleMessageDebounce.inMilliseconds} ms of the last)');
+      }
       return;
     }
 
@@ -495,6 +515,9 @@ class _ReaderTtuSourcePageState extends BaseSourcePageState<ReaderTtuSourcePage>
 
     switch (messageJson['jidoujisho-message-type']) {
       case 'lookup':
+        LookupLog.add('Tap message: index=${messageJson['index']}, '
+            'text length=${messageJson['text']?.toString().length}, '
+            'x=${messageJson['x']}, y=${messageJson['y']}');
         FocusScope.of(context).unfocus();
         _focusNode.requestFocus();
 
@@ -601,8 +624,11 @@ class _ReaderTtuSourcePageState extends BaseSourcePageState<ReaderTtuSourcePage>
             mediaSource.setCurrentSentence(
               selection: selection,
             );
+          }).catchError((e) {
+            LookupLog.add('Lookup failed: $e');
           });
         } catch (e) {
+          LookupLog.add('Tap handling failed: $e');
           clearDictionaryResult();
         }
 

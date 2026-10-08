@@ -19,12 +19,10 @@ class CrashDiagnostics {
     RenderProcessGoneDetail detail, {
     bool notify = true,
   }) {
-    FlutterLogs.logError(
-      'Diagnostics',
-      'WebView',
-      'Renderer process gone: didCrash=${detail.didCrash}, '
-          'priorityAtExit=${detail.rendererPriorityAtExit}',
-    );
+    String message = 'Renderer process gone: didCrash=${detail.didCrash}, '
+        'priorityAtExit=${detail.rendererPriorityAtExit}';
+    FlutterLogs.logError('Diagnostics', 'WebView', message);
+    LookupLog.add(message);
     if (notify) {
       Fluttertoast.showToast(
         msg: detail.didCrash
@@ -130,4 +128,48 @@ class CrashDiagnostics {
     }
     return buffer.toString().trim();
   }
+}
+
+/// Keeps the recent steps of dictionary lookups in the readers, so a pop-up
+/// that closes or never shows can be traced to what closed it.
+class LookupLog {
+  LookupLog._();
+
+  static const int _maxEntries = 300;
+  static final List<String> _entries = [];
+
+  /// Whether anything was recorded since the app started.
+  static bool get isEmpty => _entries.isEmpty;
+
+  /// The recorded steps, oldest first.
+  static String get text => _entries.join('\n');
+
+  /// Record a step.
+  static void add(String event) {
+    DateTime now = DateTime.now();
+    String time = '${_pad(now.hour)}:${_pad(now.minute)}:${_pad(now.second)}'
+        '.${now.millisecond.toString().padLeft(3, '0')}';
+    _entries.add('$time $event');
+    if (_entries.length > _maxEntries) {
+      _entries.removeRange(0, _entries.length - _maxEntries);
+    }
+  }
+
+  /// Record a step along with the code that led to it, for steps such as
+  /// closing the pop-up that many places can trigger.
+  static void addWithCaller(String event) {
+    List<String> frames = StackTrace.current
+        .toString()
+        .split('\n')
+        .map((frame) => frame.replaceFirst(RegExp(r'^#\d+\s+'), '').trim())
+        .where((frame) =>
+            frame.isNotEmpty &&
+            !frame.startsWith('LookupLog.') &&
+            !frame.contains('crash_diagnostics.dart'))
+        .take(6)
+        .toList();
+    add('$event\n    ${frames.join('\n    ')}');
+  }
+
+  static String _pad(int value) => value.toString().padLeft(2, '0');
 }

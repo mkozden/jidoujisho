@@ -1,5 +1,7 @@
 import 'package:change_notifier_builder/change_notifier_builder.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:fluttertoast/fluttertoast.dart';
 import 'package:spaces/spaces.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:yuuna/media.dart';
@@ -318,6 +320,12 @@ class _HomePageState extends BasePageState<HomePage>
     );
   }
 
+  /// Copies the recent reader lookup steps, for reporting lookup problems.
+  void copyLookupLog() async {
+    await Clipboard.setData(ClipboardData(text: LookupLog.text));
+    Fluttertoast.showToast(msg: t.copied_to_clipboard);
+  }
+
   List<PopupMenuItem<VoidCallback>> getMenuItems() {
     return [
       buildPopupItem(
@@ -333,6 +341,12 @@ class _HomePageState extends BasePageState<HomePage>
         icon: Icons.chrome_reader_mode_outlined,
         action: appModel.toggleEinkMode,
       ),
+      if (!LookupLog.isEmpty)
+        buildPopupItem(
+          label: t.options_copy_lookup_log,
+          icon: Icons.bug_report_outlined,
+          action: copyLookupLog,
+        ),
       // if ((appModel.androidDeviceInfo.version.sdkInt ?? 0) >= 33)
       //   buildPopupItem(
       //     label: optionsPipMode,

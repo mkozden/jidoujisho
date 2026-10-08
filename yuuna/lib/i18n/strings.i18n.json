@@ -73,6 +73,7 @@
     "last_exit_hint": "Android recorded why the app stopped last time. Copy this report to help find the cause.",
     "webview_renderer_crashed": "The reader's web engine crashed and was reloaded.",
     "webview_renderer_killed": "The system closed the reader's web engine; it was reloaded.",
+    "options_copy_lookup_log": "Copy lookup log",
     "options_incognito_on": "Turn on incognito mode",
     "options_incognito_off": "Turn off incognito mode",
     "options_dictionaries": "Manage dictionaries",

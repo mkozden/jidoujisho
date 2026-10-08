@@ -1,9 +1,9 @@
 /// Generated file. Do not edit.
 ///
 /// Locales: 1
-/// Strings: 403
+/// Strings: 404
 ///
-/// Built on 2026-10-08 at 04:34 UTC
+/// Built on 2026-10-08 at 15:10 UTC
 
 // coverage:ignore-file
 // ignore_for_file: type=lint
@@ -218,6 +218,7 @@ class _StringsEn implements BaseTranslations<AppLocale, _StringsEn> {
 	String get last_exit_hint => 'Android recorded why the app stopped last time. Copy this report to help find the cause.';
 	String get webview_renderer_crashed => 'The reader\'s web engine crashed and was reloaded.';
 	String get webview_renderer_killed => 'The system closed the reader\'s web engine; it was reloaded.';
+	String get options_copy_lookup_log => 'Copy lookup log';
 	String get options_incognito_on => 'Turn on incognito mode';
 	String get options_incognito_off => 'Turn off incognito mode';
 	String get options_dictionaries => 'Manage dictionaries';
@@ -653,6 +654,7 @@ extension on _StringsEn {
 			case 'last_exit_hint': return 'Android recorded why the app stopped last time. Copy this report to help find the cause.';
 			case 'webview_renderer_crashed': return 'The reader\'s web engine crashed and was reloaded.';
 			case 'webview_renderer_killed': return 'The system closed the reader\'s web engine; it was reloaded.';
+			case 'options_copy_lookup_log': return 'Copy lookup log';
 			case 'options_incognito_on': return 'Turn on incognito mode';
 			case 'options_incognito_off': return 'Turn off incognito mode';
 			case 'options_dictionaries': return 'Manage dictionaries';
