@@ -1,9 +1,9 @@
 /// Generated file. Do not edit.
 ///
 /// Locales: 1
-/// Strings: 399
+/// Strings: 403
 ///
-/// Built on 2026-10-07 at 18:57 UTC
+/// Built on 2026-10-08 at 04:34 UTC
 
 // coverage:ignore-file
 // ignore_for_file: type=lint
@@ -214,6 +214,10 @@ class _StringsEn implements BaseTranslations<AppLocale, _StringsEn> {
 	String get options_theme_dark => 'Use dark theme';
 	String get options_eink_mode_enable => 'Enable e-ink mode';
 	String get options_eink_mode_disable => 'Disable e-ink mode';
+	String get last_exit_title => 'The app closed unexpectedly';
+	String get last_exit_hint => 'Android recorded why the app stopped last time. Copy this report to help find the cause.';
+	String get webview_renderer_crashed => 'The reader\'s web engine crashed and was reloaded.';
+	String get webview_renderer_killed => 'The system closed the reader\'s web engine; it was reloaded.';
 	String get options_incognito_on => 'Turn on incognito mode';
 	String get options_incognito_off => 'Turn off incognito mode';
 	String get options_dictionaries => 'Manage dictionaries';
@@ -645,6 +649,10 @@ extension on _StringsEn {
 			case 'options_theme_dark': return 'Use dark theme';
 			case 'options_eink_mode_enable': return 'Enable e-ink mode';
 			case 'options_eink_mode_disable': return 'Disable e-ink mode';
+			case 'last_exit_title': return 'The app closed unexpectedly';
+			case 'last_exit_hint': return 'Android recorded why the app stopped last time. Copy this report to help find the cause.';
+			case 'webview_renderer_crashed': return 'The reader\'s web engine crashed and was reloaded.';
+			case 'webview_renderer_killed': return 'The system closed the reader\'s web engine; it was reloaded.';
 			case 'options_incognito_on': return 'Turn on incognito mode';
 			case 'options_incognito_off': return 'Turn off incognito mode';
 			case 'options_dictionaries': return 'Manage dictionaries';

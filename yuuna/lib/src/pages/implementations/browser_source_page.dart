@@ -72,6 +72,7 @@ class _BrowserSourcePageState extends BaseSourcePageState<BrowserSourcePage> {
   /// recreated on the URL it last showed instead.
   void onRenderProcessGone(
       InAppWebViewController controller, RenderProcessGoneDetail detail) {
+    CrashDiagnostics.onWebViewRendererGone(detail, notify: mounted);
     if (!mounted) {
       return;
     }

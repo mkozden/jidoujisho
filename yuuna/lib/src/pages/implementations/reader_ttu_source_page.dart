@@ -299,6 +299,7 @@ class _ReaderTtuSourcePageState extends BaseSourcePageState<ReaderTtuSourcePage>
   /// recreated on the page it last showed instead.
   void onRenderProcessGone(
       InAppWebViewController controller, RenderProcessGoneDetail detail) {
+    CrashDiagnostics.onWebViewRendererGone(detail, notify: mounted);
     if (!mounted) {
       return;
     }
@@ -397,6 +398,8 @@ class _ReaderTtuSourcePageState extends BaseSourcePageState<ReaderTtuSourcePage>
                   ),
                   windowId: createWindowRequest.windowId,
                   onRenderProcessGone: (controller, detail) {
+                    CrashDiagnostics.onWebViewRendererGone(detail,
+                        notify: false);
                     if (mounted) {
                       Navigator.pop(context);
                     }

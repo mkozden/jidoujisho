@@ -147,6 +147,7 @@ class ReaderLyricsSource extends ReaderMediaSource {
         useOnRenderProcessGone: true,
       ),
       onRenderProcessGone: (controller, detail) {
+        CrashDiagnostics.onWebViewRendererGone(detail, notify: false);
         webViewBusy = false;
       },
       initialUrlRequest: URLRequest(
@@ -194,6 +195,7 @@ class ReaderLyricsSource extends ReaderMediaSource {
           useOnRenderProcessGone: true,
         ),
         onRenderProcessGone: (controller, detail) {
+          CrashDiagnostics.onWebViewRendererGone(detail, notify: false);
           googleWebViewBusy = false;
         },
         initialUrlRequest: URLRequest(
@@ -225,6 +227,7 @@ class ReaderLyricsSource extends ReaderMediaSource {
             useOnRenderProcessGone: true,
           ),
           onRenderProcessGone: (controller, detail) {
+            CrashDiagnostics.onWebViewRendererGone(detail, notify: false);
             utanetWebViewBusy = false;
           },
           initialUrlRequest: URLRequest(

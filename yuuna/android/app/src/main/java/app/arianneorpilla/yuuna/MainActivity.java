@@ -3,6 +3,12 @@
 package app.arianneorpilla.yuuna;
 
 import android.app.Activity;
+import android.app.ActivityManager;
+import android.app.ApplicationExitInfo;
+import android.content.Context;
+import android.content.SharedPreferences;
+import android.os.Build;
+import android.util.Log;
 import android.content.Intent;
 import android.os.Bundle;
 import android.os.Handler;
@@ -25,7 +31,15 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
+import java.io.ByteArrayOutputStream;
 import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileWriter;
+import java.io.InputStream;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 import com.ichi2.anki.api.NoteInfo;
 import com.ryanheise.audioservice.AudioServiceActivity;
@@ -33,7 +47,18 @@ import android.content.res.Configuration;
 
 public class MainActivity extends AudioServiceActivity {
     private static final String ANKIDROID_CHANNEL = "app.arianneorpilla.yuuna/anki";
+    private static final String DIAGNOSTICS_CHANNEL = "app.arianneorpilla.yuuna/diagnostics";
     private static final int AD_PERM_REQUEST = 0;
+
+    private static final String CRASH_FILE = "last_java_crash.txt";
+    private static final String DIAGNOSTICS_PREFS = "diagnostics";
+    private static final String LAST_REPORTED_EXIT = "last_reported_exit_timestamp";
+    private static final int MAX_TRACE_LENGTH = 64 * 1024;
+
+    // AnkiDroid queries are IPC calls that can block for seconds, for example
+    // while AnkiDroid starts up, so they run off the main thread.
+    private final ExecutorService ankiExecutor = Executors.newSingleThreadExecutor();
+    private final Handler mainHandler = new Handler(Looper.getMainLooper());
 
     private Activity context;
     private AnkiDroidHelper mAnkiDroid;
@@ -46,6 +71,156 @@ public class MainActivity extends AudioServiceActivity {
         context = MainActivity.this;
         // Create the example data
         mAnkiDroid = new AnkiDroidHelper(context);
+        installCrashRecorder();
+    }
+
+    /**
+     * Records uncaught Java exceptions to a file before the process dies, so
+     * the stack trace can be shown when the app is next opened.
+     */
+    private void installCrashRecorder() {
+        Thread.UncaughtExceptionHandler previous = Thread.getDefaultUncaughtExceptionHandler();
+        if (previous instanceof CrashRecorder) {
+            return;
+        }
+        Thread.setDefaultUncaughtExceptionHandler(
+            new CrashRecorder(getApplicationContext(), previous));
+    }
+
+    private static class CrashRecorder implements Thread.UncaughtExceptionHandler {
+        private final Context appContext;
+        private final Thread.UncaughtExceptionHandler previous;
+
+        CrashRecorder(Context appContext, Thread.UncaughtExceptionHandler previous) {
+            this.appContext = appContext;
+            this.previous = previous;
+        }
+
+        @Override
+        public void uncaughtException(@NonNull Thread thread, @NonNull Throwable throwable) {
+            try (FileWriter writer = new FileWriter(new File(appContext.getFilesDir(), CRASH_FILE))) {
+                writer.write("Thread: " + thread.getName() + "\n" + Log.getStackTraceString(throwable));
+            } catch (Exception ignored) {
+                // Nothing more can be done while the process is dying.
+            }
+
+            if (previous != null) {
+                previous.uncaughtException(thread, throwable);
+            } else {
+                android.os.Process.killProcess(android.os.Process.myPid());
+                System.exit(10);
+            }
+        }
+    }
+
+    /**
+     * Describes why the app's previous process ended, if it ended
+     * unexpectedly and has not been reported yet. Returns null otherwise.
+     */
+    private Map<String, Object> getLastExitReport() {
+        Map<String, Object> report = new HashMap<>();
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            ActivityManager activityManager =
+                (ActivityManager) getSystemService(Context.ACTIVITY_SERVICE);
+            List<ApplicationExitInfo> exits =
+                activityManager.getHistoricalProcessExitReasons(null, 0, 10);
+            SharedPreferences prefs = getSharedPreferences(DIAGNOSTICS_PREFS, MODE_PRIVATE);
+            long lastReported = prefs.getLong(LAST_REPORTED_EXIT, 0);
+
+            // Exits are ordered newest first.
+            for (ApplicationExitInfo exit : exits) {
+                if (exit.getTimestamp() <= lastReported) {
+                    break;
+                }
+                if (isUnexpectedExit(exit.getReason())) {
+                    report.put("reason", exitReasonName(exit.getReason()));
+                    report.put("description", String.valueOf(exit.getDescription()));
+                    report.put("timestamp", exit.getTimestamp());
+                    report.put("importance", exit.getImportance());
+                    report.put("status", exit.getStatus());
+                    report.put("pssKb", exit.getPss());
+                    report.put("rssKb", exit.getRss());
+                    // ANR traces are text; native crash tombstones are binary.
+                    if (exit.getReason() == ApplicationExitInfo.REASON_ANR) {
+                        try {
+                            String trace = readText(exit.getTraceInputStream());
+                            if (trace != null) {
+                                report.put("trace", trace);
+                            }
+                        } catch (Exception e) {
+                            report.put("trace", "Could not read the trace: " + e);
+                        }
+                    }
+                    break;
+                }
+            }
+
+            if (!exits.isEmpty()) {
+                prefs.edit().putLong(LAST_REPORTED_EXIT, exits.get(0).getTimestamp()).apply();
+            }
+        }
+
+        File crashFile = new File(getFilesDir(), CRASH_FILE);
+        if (crashFile.exists()) {
+            try {
+                report.put("javaTrace", readText(new FileInputStream(crashFile)));
+            } catch (Exception ignored) {
+                // The report is best effort.
+            }
+            crashFile.delete();
+            report.putIfAbsent("reason", "CRASH");
+        }
+
+        return report.isEmpty() ? null : report;
+    }
+
+    private static boolean isUnexpectedExit(int reason) {
+        switch (reason) {
+            case 2: // REASON_SIGNALED
+            case 3: // REASON_LOW_MEMORY
+            case 4: // REASON_CRASH
+            case 5: // REASON_CRASH_NATIVE
+            case 6: // REASON_ANR
+            case 7: // REASON_INITIALIZATION_FAILURE
+            case 9: // REASON_EXCESSIVE_RESOURCE_USAGE
+            case 12: // REASON_DEPENDENCY_DIED
+            case 14: // REASON_FREEZER
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    private static String exitReasonName(int reason) {
+        switch (reason) {
+            case 2: return "SIGNALED";
+            case 3: return "LOW_MEMORY";
+            case 4: return "CRASH";
+            case 5: return "CRASH_NATIVE";
+            case 6: return "ANR";
+            case 7: return "INITIALIZATION_FAILURE";
+            case 9: return "EXCESSIVE_RESOURCE_USAGE";
+            case 12: return "DEPENDENCY_DIED";
+            case 14: return "FREEZER";
+            default: return "REASON_" + reason;
+        }
+    }
+
+    private static String readText(InputStream input) throws java.io.IOException {
+        if (input == null) {
+            return null;
+        }
+        try (InputStream in = input) {
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            byte[] buffer = new byte[8192];
+            int read;
+            while ((read = in.read(buffer)) != -1 && out.size() < MAX_TRACE_LENGTH) {
+                out.write(buffer, 0, read);
+            }
+            String text = out.toString("UTF-8");
+            return text.length() > MAX_TRACE_LENGTH ? text.substring(0, MAX_TRACE_LENGTH) : text;
+        }
     }
     
 
@@ -181,13 +356,11 @@ public class MainActivity extends AudioServiceActivity {
                                     result.success(false);
                                     return;
                                 } else {
-                                    new Handler(Looper.getMainLooper()).post(new Runnable() {
-                                    @Override
-                                    public void run() {
-                                        // This runs later, outside the surrounding
-                                        // try, where an uncaught exception would
-                                        // close the app, so a failed check
-                                        // reports no duplicate instead.
+                                    // This runs later on a background thread,
+                                    // outside the surrounding try, where an
+                                    // uncaught exception would close the app,
+                                    // so a failed check reports no duplicate.
+                                    ankiExecutor.execute(() -> {
                                         boolean hasDuplicates;
                                         try {
                                             hasDuplicates = checkForDuplicates(models, key);
@@ -195,8 +368,8 @@ public class MainActivity extends AudioServiceActivity {
                                             e.printStackTrace();
                                             hasDuplicates = false;
                                         }
-                                        result.success(hasDuplicates);
-                                    }
+                                        final boolean reply = hasDuplicates;
+                                        mainHandler.post(() -> result.success(reply));
                                     });
                                 }
                                 break;
@@ -248,6 +421,21 @@ public class MainActivity extends AudioServiceActivity {
                     } catch (Exception e) {
                         e.printStackTrace();
                         result.error("ANKIDROID_ERROR", e.toString(), null);
+                    }
+                }
+            );
+
+        new MethodChannel(flutterEngine.getDartExecutor().getBinaryMessenger(), DIAGNOSTICS_CHANNEL)
+            .setMethodCallHandler(
+                (call, result) -> {
+                    if (call.method.equals("getLastExitReport")) {
+                        try {
+                            result.success(getLastExitReport());
+                        } catch (Exception e) {
+                            result.error("DIAGNOSTICS_ERROR", e.toString(), null);
+                        }
+                    } else {
+                        result.notImplemented();
                     }
                 }
             );

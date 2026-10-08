@@ -10,6 +10,7 @@ import 'package:network_to_file_image/network_to_file_image.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:yuuna/creator.dart';
 import 'package:yuuna/models.dart';
+import 'package:yuuna/utils.dart';
 import 'package:html/parser.dart' as parser;
 import 'package:html/dom.dart' as dom;
 
@@ -102,6 +103,7 @@ class BingImagesSearchEnhancement extends ImageEnhancement {
           useOnRenderProcessGone: true,
         ),
         onRenderProcessGone: (controller, detail) {
+          CrashDiagnostics.onWebViewRendererGone(detail, notify: false);
           webViewBusy = false;
         },
         onLoadStop: (controller, uri) async {

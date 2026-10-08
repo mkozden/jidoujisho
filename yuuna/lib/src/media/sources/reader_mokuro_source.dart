@@ -254,7 +254,9 @@ class ReaderMokuroSource extends ReaderMediaSource {
         // Without this, Android kills the app if the WebView renderer dies.
         useOnRenderProcessGone: true,
       ),
-      onRenderProcessGone: (controller, detail) {},
+      onRenderProcessGone: (controller, detail) {
+        CrashDiagnostics.onWebViewRendererGone(detail, notify: false);
+      },
       initialUrlRequest: URLRequest(
         url: WebUri(
             'file://$parentDirectory/${Uri.encodeComponent(directoryBasename)}/${Uri.encodeComponent(fileBasename)}'),

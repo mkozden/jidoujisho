@@ -61,6 +61,10 @@ class _HomePageState extends BasePageState<HomePage>
 
         appModel.setFirstTimeSetupFlag();
       }
+
+      if (mounted) {
+        await CrashDiagnostics.showLastExitReportIfAny(context);
+      }
     });
   }
 
