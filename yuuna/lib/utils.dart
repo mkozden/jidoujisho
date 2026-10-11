@@ -39,4 +39,5 @@ export 'src/utils/misc/mokuro_payload.dart';
 export 'src/utils/misc/dialog_content.dart';
 export 'src/utils/misc/eink_mode.dart';
 export 'src/utils/misc/browser_bookmark.dart';
+export 'src/utils/misc/crash_diagnostics.dart';
 export 'src/utils/misc/local_web_assets_server.dart';
