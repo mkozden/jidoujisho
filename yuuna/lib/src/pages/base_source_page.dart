@@ -136,6 +136,7 @@ class BaseSourcePageState<T extends BaseSourcePage> extends BasePageState<T> {
     int? overrideMaximumTerms,
   }) async {
     if (_lastSearchTerm == searchTerm && overrideMaximumTerms == null) {
+      LookupLog.add('Search skipped, same term as before: "$searchTerm"');
       return;
     } else {
       _lastSearchTerm = searchTerm;
@@ -148,6 +149,7 @@ class BaseSourcePageState<T extends BaseSourcePage> extends BasePageState<T> {
     late DictionarySearchResult dictionaryResult;
     _popupPositionNotifier.value = position;
 
+    LookupLog.add('Search started: "$searchTerm"');
     try {
       _isSearchingNotifier.value = true;
 
@@ -166,6 +168,11 @@ class BaseSourcePageState<T extends BaseSourcePage> extends BasePageState<T> {
       appModel.addToDictionaryHistory(result: dictionaryResult);
       _showMore = dictionaryResult.headings.length < overrideMaximumTerms;
       _dictionaryResultNotifier.value = dictionaryResult;
+      LookupLog.add('Search finished: "$searchTerm", '
+          '${dictionaryResult.headingIds.length} results');
+    } catch (e) {
+      LookupLog.add('Search failed: "$searchTerm": $e');
+      rethrow;
     } finally {
       _isSearchingNotifier.value = false;
     }
@@ -173,6 +180,9 @@ class BaseSourcePageState<T extends BaseSourcePage> extends BasePageState<T> {
 
   /// Hide the dictionary and dispose of the current result.
   void clearDictionaryResult() async {
+    if (_popupPositionNotifier.value != null || _isSearchingNotifier.value) {
+      LookupLog.addWithCaller('Pop-up closed');
+    }
     _dictionaryResultNotifier.value = null;
     _popupPositionNotifier.value = null;
     _lastSearchTerm = null;
@@ -331,6 +341,7 @@ class BaseSourcePageState<T extends BaseSourcePage> extends BasePageState<T> {
       onDismissed: (dismissDirection) {},
       onUpdate: (details) {
         if (details.reached) {
+          LookupLog.add('Pop-up swiped away');
           onDictionaryDismiss();
         }
       },

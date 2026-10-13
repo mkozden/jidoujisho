@@ -10,6 +10,7 @@ import 'package:network_to_file_image/network_to_file_image.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:yuuna/creator.dart';
 import 'package:yuuna/models.dart';
+import 'package:yuuna/utils.dart';
 import 'package:html/parser.dart' as parser;
 import 'package:html/dom.dart' as dom;
 
@@ -96,7 +97,15 @@ class BingImagesSearchEnhancement extends ImageEnhancement {
             "https://www.bing.com/images/search?q=$searchTerm')",
           ),
         ),
-        initialSettings: InAppWebViewSettings(blockNetworkImage: true),
+        initialSettings: InAppWebViewSettings(
+          blockNetworkImage: true,
+          // Without this, Android kills the app if the WebView renderer dies.
+          useOnRenderProcessGone: true,
+        ),
+        onRenderProcessGone: (controller, detail) {
+          CrashDiagnostics.onWebViewRendererGone(detail, notify: false);
+          webViewBusy = false;
+        },
         onLoadStop: (controller, uri) async {
           Directory appDirDoc = await getApplicationSupportDirectory();
           String bingImagesPath = '${appDirDoc.path}/bingImages';

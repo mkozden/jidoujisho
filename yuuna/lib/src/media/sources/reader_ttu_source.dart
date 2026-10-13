@@ -379,6 +379,12 @@ class ReaderTtuSource extends ReaderMediaSource {
       initialUrlRequest: URLRequest(
         url: WebUri('http://localhost:$port/'),
       ),
+      // Without this, Android kills the app if the WebView renderer dies.
+      initialSettings: InAppWebViewSettings(useOnRenderProcessGone: true),
+      onRenderProcessGone: (controller, detail) {
+        CrashDiagnostics.onWebViewRendererGone(detail, notify: false);
+        items ??= [];
+      },
       onLoadStop: (controller, url) async {
         controller.evaluateJavascript(source: getHistoryJs);
       },
