@@ -75,6 +75,13 @@ class BaseSourcePageState<T extends BaseSourcePage> extends BasePageState<T> {
   /// Whether or not there is a present dictionary result.
   bool get isDictionaryShown => _dictionaryResultNotifier.value != null;
 
+  /// Whether [event] is a press of a volume key.
+  bool isVolumeKeyDown(RawKeyEvent event) {
+    return event is RawKeyDownEvent &&
+        (event.logicalKey == LogicalKeyboardKey.audioVolumeUp ||
+            event.logicalKey == LogicalKeyboardKey.audioVolumeDown);
+  }
+
   /// The popup position for the [buildDictionary] widget.
   final _popupPositionNotifier =
       ValueNotifier<JidoujishoPopupPosition?>(JidoujishoPopupPosition.topHalf);

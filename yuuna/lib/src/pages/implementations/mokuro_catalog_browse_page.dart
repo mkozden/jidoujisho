@@ -492,6 +492,10 @@ document.getElementById('pageIdxDisplay').style.color = 'white';
         if (ModalRoute.of(context)?.isCurrent ?? false) {
           if (mediaSource.volumePageTurningEnabled) {
             if (isDictionaryShown) {
+              /// Only a volume key press closes the pop-up, see the reader.
+              if (!isVolumeKeyDown(event)) {
+                return KeyEventResult.ignored;
+              }
               clearDictionaryResult();
               unselectWebViewTextSelection(_controller);
               mediaSource.clearCurrentSentence();

@@ -132,9 +132,16 @@ class _ReaderTtuSourcePageState extends BaseSourcePageState<ReaderTtuSourcePage>
         if (ModalRoute.of(context)?.isCurrent ?? false) {
           if (mediaSource.volumePageTurningEnabled) {
             if (isDictionaryShown) {
-              LookupLog.add('Key event while the pop-up is open: '
-                  '${event.runtimeType} keyId=${event.logicalKey.keyId} '
-                  'label="${event.logicalKey.keyLabel}"');
+              /// Only a volume key press closes the pop-up. Some devices send
+              /// stray key events right after a tap, such as Android's
+              /// KEYCODE_UNKNOWN, which would otherwise close it at once.
+              if (!isVolumeKeyDown(event)) {
+                LookupLog.add('Key event ignored while the pop-up is open: '
+                    '${event.runtimeType} keyId=${event.logicalKey.keyId} '
+                    'label="${event.logicalKey.keyLabel}"');
+                return KeyEventResult.ignored;
+              }
+              LookupLog.add('Volume key closed the pop-up');
               clearDictionaryResult();
               unselectWebViewTextSelection(_controller);
               mediaSource.clearCurrentSentence();
