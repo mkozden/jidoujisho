@@ -91,8 +91,8 @@ abstract class BaseTabPageState<T extends BaseTabPage> extends BasePageState {
         );
   }
 
-  /// Respond to tapping to the search bar and execute an action if the source
-  /// does not implement search.
+  /// Respond to tapping to the search bar and show the source picker if the
+  /// source does not implement search.
   void onFocusChanged({required bool focused}) async {
     _isSearchBarFocused = focused;
 
@@ -102,11 +102,7 @@ abstract class BaseTabPageState<T extends BaseTabPage> extends BasePageState {
     } else {
       if (!mediaSource.implementsSearch) {
         final focusScope = FocusScope.of(context);
-        await mediaSource.onSearchBarTap(
-          context: context,
-          ref: ref,
-          appModel: appModel,
-        );
+        await showChangeSourceDialog();
         mediaType.floatingSearchBarController.clear();
         mediaType.floatingSearchBarController.close();
         setState(() {});
@@ -128,18 +124,21 @@ abstract class BaseTabPageState<T extends BaseTabPage> extends BasePageState {
         size: textTheme.titleLarge?.fontSize,
         tooltip: t.change_source,
         icon: mediaSource.icon,
-        onTap: () async {
-          await showDialog(
-            barrierDismissible: true,
-            context: context,
-            builder: (context) => MediaSourcePickerDialogPage(
-              mediaType: mediaType,
-            ),
-          );
-          mediaType.refreshTab();
-        },
+        onTap: showChangeSourceDialog,
       ),
     );
+  }
+
+  /// Shows the dialog for picking the active [MediaSource] of this tab.
+  Future<void> showChangeSourceDialog() async {
+    await showDialog(
+      barrierDismissible: true,
+      context: context,
+      builder: (context) => MediaSourcePickerDialogPage(
+        mediaType: mediaType,
+      ),
+    );
+    mediaType.refreshTab();
   }
 
   /// Allows user to close the [FloatingSearchBar] when open.
