@@ -780,6 +780,7 @@ class AppModel with ChangeNotifier {
       ReaderMediaType.instance: [
         ReaderTtuSource.instance,
         ReaderMokuroSource.instance,
+        ReaderMokuroNativeSource.instance,
         ReaderBrowserSource.instance,
         ReaderLyricsSource.instance,
         ReaderChatgptSource.instance,
