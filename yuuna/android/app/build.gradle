@@ -41,6 +41,9 @@ apply from: "$flutterRoot/packages/flutter_tools/gradle/flutter.gradle"
 // package name and launcher label, so they install next to the original app
 // instead of replacing it.
 def sideBySide = (project.findProperty('yuunaSideBySide') ?: 'false').toString().toBoolean()
+// Builds with yuunaDev=true install as a third app, next to both of the above,
+// for trying out unfinished features without touching an everyday install.
+def devBuild = (project.findProperty('yuunaDev') ?: 'false').toString().toBoolean()
 
 android {
     compileSdkVersion 34
@@ -65,10 +68,12 @@ android {
         targetSdkVersion 32
         versionCode flutterVersionCode.toInteger()
         versionName flutterVersionName
-        if (sideBySide) {
+        if (devBuild) {
+            applicationIdSuffix ".dev"
+        } else if (sideBySide) {
             applicationIdSuffix ".plus"
         }
-        manifestPlaceholders += [appLabel: sideBySide ? "jidoujisho+" : "jidoujisho"]
+        manifestPlaceholders += [appLabel: devBuild ? "jidoujisho dev" : sideBySide ? "jidoujisho+" : "jidoujisho"]
 
         // Plugins such as VLC and FFmpeg ship native libraries for every ABI.
         // Only package the ABIs Flutter builds for (--target-platform); ABI
@@ -121,7 +126,7 @@ android {
 
     applicationVariants.all { variant ->
         variant.outputs.all { output ->
-            def appName = sideBySide ? "jidoujisho_yuuna_plus" : "jidoujisho_yuuna"
+            def appName = devBuild ? "jidoujisho_yuuna_dev" : sideBySide ? "jidoujisho_yuuna_plus" : "jidoujisho_yuuna"
             def buildType = variant.buildType.name
             def architecture = output.getFilter(com.android.build.OutputFile.ABI)
             def newName

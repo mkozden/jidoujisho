@@ -43,7 +43,14 @@ jobs:
           echo "keyAlias=jidoujisho"
           echo "keyPassword=$(echo "$SIGNING_PASSWORD" | tr -d '[:space:]')"
         } > yuuna/android/key.properties
-    - run: flutter build apk --target-platform=android-arm64
+    - name: Build APK
+      run: |
+        # Feature branches may turn on yuunaDev to install as a separate test
+        # app; main always builds the everyday app.
+        if [ "$GITHUB_REF" = "refs/heads/main" ]; then
+          export ORG_GRADLE_PROJECT_yuunaDev=false
+        fi
+        flutter build apk --target-platform=android-arm64
       working-directory: yuuna
     - name: Show the signing certificate
       run: |
