@@ -1,9 +1,9 @@
 /// Generated file. Do not edit.
 ///
 /// Locales: 1
-/// Strings: 415
+/// Strings: 416
 ///
-/// Built on 2026-10-29 at 08:17 UTC
+/// Built on 2026-10-29 at 14:05 UTC
 
 // coverage:ignore-file
 // ignore_for_file: type=lint
@@ -498,6 +498,7 @@ class _StringsEn implements BaseTranslations<AppLocale, _StringsEn> {
 	String get mokuro_show_text_outlines => 'Show recognised text outlines';
 	String get mokuro_show_recognised_text => 'Show recognised text (or long press a block)';
 	String get mokuro_invert_page_colours => 'Invert page colours';
+	String get mokuro_volume_button_page_turning => 'Volume button page turning (unreliable)';
 	String get create_catalog => 'Create Catalog';
 	String get adapt_ttu_theme => 'Adapt dictionary popup to theme';
 	String get sentence_picker => 'Sentence Picker';
@@ -945,6 +946,7 @@ extension on _StringsEn {
 			case 'mokuro_show_text_outlines': return 'Show recognised text outlines';
 			case 'mokuro_show_recognised_text': return 'Show recognised text (or long press a block)';
 			case 'mokuro_invert_page_colours': return 'Invert page colours';
+			case 'mokuro_volume_button_page_turning': return 'Volume button page turning (unreliable)';
 			case 'create_catalog': return 'Create Catalog';
 			case 'adapt_ttu_theme': return 'Adapt dictionary popup to theme';
 			case 'sentence_picker': return 'Sentence Picker';

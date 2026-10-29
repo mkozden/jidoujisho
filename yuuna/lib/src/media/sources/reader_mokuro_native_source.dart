@@ -334,6 +334,10 @@ class ReaderMokuroNativeSource extends ReaderMediaSource {
   }
 
   /// Whether the volume buttons turn the page.
+  ///
+  /// Known issue: on at least one phone the volume buttons only turn pages
+  /// after leaving the reader and opening the file again, and go back to
+  /// changing the volume once the app has been left and returned to.
   bool get volumePageTurningEnabled {
     return getPreference<bool>(
         key: 'volume_page_turning_enabled', defaultValue: true);

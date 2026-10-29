@@ -456,6 +456,11 @@ class _ReaderMokuroNativePageState
   /// arrow keys, which page turn buttons on e-readers often send. Handled
   /// for the whole app while the reader is on top, rather than through
   /// focus, so that the keys reach the reader whatever has focus.
+  ///
+  /// Known issue: this is unreliable for the volume buttons. On at least one
+  /// phone they only reach the reader after leaving it and opening the file
+  /// again, and stop reaching it once the app has been left and returned to,
+  /// changing the volume instead.
   bool onKeyEvent(KeyEvent event) {
     if (!mounted ||
         _loaded == null ||

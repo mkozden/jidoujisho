@@ -82,7 +82,7 @@ class _MokuroNativeSettingsDialogPageState extends BasePageState {
                 onToggle: source.toggleHighlightOnTap,
               ),
               buildSwitch(
-                label: t.volume_button_page_turning,
+                label: t.mokuro_volume_button_page_turning,
                 value: () => source.volumePageTurningEnabled,
                 onToggle: source.toggleVolumePageTurningEnabled,
               ),
