@@ -7,6 +7,13 @@ on:
     branches: ['main']
     paths: ['yuuna/**']
   workflow_dispatch:
+  # The Release workflow builds its APK with this workflow.
+  workflow_call:
+    inputs:
+      release:
+        description: Fail instead of signing with a random debug key.
+        type: boolean
+        default: false
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -31,8 +38,13 @@ jobs:
         # password (PKCS12 uses the same password for the key).
         SIGNING_KEYSTORE: ${{ secrets.SIGNING_KEYSTORE }}
         SIGNING_PASSWORD: ${{ secrets.SIGNING_PASSWORD }}
+        RELEASE: ${{ inputs.release }}
       run: |
         if [ -z "$SIGNING_KEYSTORE" ] || [ -z "$SIGNING_PASSWORD" ]; then
+          if [ "$RELEASE" = "true" ]; then
+            echo "::error::A release needs the SIGNING_KEYSTORE and SIGNING_PASSWORD secrets, so that it installs over earlier releases."
+            exit 1
+          fi
           echo "::warning::No SIGNING_KEYSTORE/SIGNING_PASSWORD secrets; the APK is signed with a random debug key and cannot update other builds."
           exit 0
         fi
