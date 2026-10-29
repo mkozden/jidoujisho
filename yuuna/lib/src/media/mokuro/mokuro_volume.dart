@@ -239,8 +239,11 @@ abstract class MokuroPageImages {
   /// The image of [page], for display.
   ImageProvider imageForPage(MokuroPage page);
 
+  /// The encoded image file at [imgPath], as listed in the .mokuro file.
+  Future<Uint8List> readImage(String imgPath);
+
   /// The encoded image file of [page].
-  Future<Uint8List> readPage(MokuroPage page);
+  Future<Uint8List> readPage(MokuroPage page) => readImage(page.imgPath);
 
   /// Release any resources held. No pages can be read afterwards.
   Future<void> close() async {}
@@ -254,10 +257,13 @@ class MokuroDirectoryPageImages extends MokuroPageImages {
   /// Folder that [MokuroPage.imgPath] is relative to.
   final Directory directory;
 
-  /// The image file of [page].
-  File fileForPage(MokuroPage page) {
-    return File(path.join(directory.path, page.imgPath));
+  /// The image file at [imgPath].
+  File fileForPath(String imgPath) {
+    return File(path.join(directory.path, imgPath));
   }
+
+  /// The image file of [page].
+  File fileForPage(MokuroPage page) => fileForPath(page.imgPath);
 
   @override
   ImageProvider imageForPage(MokuroPage page) {
@@ -265,7 +271,7 @@ class MokuroDirectoryPageImages extends MokuroPageImages {
   }
 
   @override
-  Future<Uint8List> readPage(MokuroPage page) {
-    return fileForPage(page).readAsBytes();
+  Future<Uint8List> readImage(String imgPath) {
+    return fileForPath(imgPath).readAsBytes();
   }
 }

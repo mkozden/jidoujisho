@@ -5,9 +5,12 @@ import 'package:filesystem_picker/filesystem_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:fluttertoast/fluttertoast.dart';
+import 'package:intl/intl.dart';
 import 'package:material_floating_search_bar/material_floating_search_bar.dart';
+import 'package:network_to_file_image/network_to_file_image.dart';
 import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
+import 'package:subtitle/subtitle.dart';
 import 'package:yuuna/media.dart';
 import 'package:yuuna/models.dart';
 import 'package:yuuna/pages.dart';
@@ -26,6 +29,7 @@ class ReaderMokuroNativeSource extends ReaderMediaSource {
           icon: Icons.auto_stories_outlined,
           implementsSearch: false,
           implementsHistory: true,
+          overridesAutoImage: true,
         );
 
   /// Get the singleton instance of this media type.
@@ -259,5 +263,60 @@ class ReaderMokuroNativeSource extends ReaderMediaSource {
       key: 'right_to_left',
       value: !rightToLeft,
     );
+  }
+
+  /// Whether the reader will highlight words on tap.
+  bool get highlightOnTap {
+    return getPreference<bool>(key: 'highlight_on_tap', defaultValue: true);
+  }
+
+  /// Toggles whether the reader will highlight words on tap.
+  void toggleHighlightOnTap() async {
+    await setPreference<bool>(
+      key: 'highlight_on_tap',
+      value: !highlightOnTap,
+    );
+  }
+
+  /// Uses the page that was last looked up in as the card image. [data] is
+  /// that page's image path, as listed in the .mokuro file of [item].
+  @override
+  Future<List<NetworkToFileImage>> generateImages({
+    required AppModel appModel,
+    required MediaItem item,
+    List<Subtitle>? subtitles,
+    SubtitleOptions? options,
+    String? data,
+  }) async {
+    if (data == null) {
+      return [];
+    }
+
+    Directory appDirDoc = await getApplicationSupportDirectory();
+    Directory previewDir =
+        Directory(path.join(appDirDoc.path, 'mokuroNativeImagePreview'));
+    if (previewDir.existsSync()) {
+      previewDir.deleteSync(recursive: true);
+    }
+
+    String timestamp = DateFormat('yyyyMMddTkkmmss').format(DateTime.now());
+    Directory imageDir = Directory(path.join(previewDir.path, timestamp));
+    imageDir.createSync(recursive: true);
+    File file = appModel.getPreviewImageFile(imageDir, 0);
+
+    try {
+      MokuroPageImages images =
+          await MokuroPageImages.find(item.mediaIdentifier);
+      try {
+        await file.writeAsBytes(await images.readImage(data));
+      } finally {
+        await images.close();
+      }
+    } catch (e) {
+      debugPrint('Cannot read $data for a card image: $e');
+      return [];
+    }
+
+    return [NetworkToFileImage(file: file)];
   }
 }

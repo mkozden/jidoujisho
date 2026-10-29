@@ -87,10 +87,10 @@ class MokuroArchivePageImages extends MokuroPageImages {
   }
 
   @override
-  Future<Uint8List> readPage(MokuroPage page) async {
-    String? entryName = entryNameForPath(page.imgPath);
+  Future<Uint8List> readImage(String imgPath) async {
+    String? entryName = entryNameForPath(imgPath);
     if (entryName == null) {
-      throw StateError('No entry for ${page.imgPath} in ${archive.path}');
+      throw StateError('No entry for $imgPath in ${archive.path}');
     }
 
     return readEntry(entryName);

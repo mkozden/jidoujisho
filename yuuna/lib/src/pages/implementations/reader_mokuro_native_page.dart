@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:spaces/spaces.dart';
 import 'package:yuuna/media.dart';
@@ -31,6 +32,20 @@ class _ReaderMokuroNativePageState
 
   final ValueNotifier<int> _pageNotifier = ValueNotifier<int>(0);
   final ValueNotifier<bool> _controlsShownNotifier = ValueNotifier<bool>(false);
+  final ValueNotifier<_MokuroHighlight?> _highlightNotifier =
+      ValueNotifier<_MokuroHighlight?>(null);
+
+  /// Keys of the shown pages' image boxes, for placing taps on them.
+  final Map<int, GlobalKey> _pageKeys = {};
+
+  /// Text layouts of pages that have been tapped, by page index.
+  final Map<int, MokuroPageLayout> _pageLayouts = {};
+
+  /// Counts lookups, so a slow search does not update the highlight or
+  /// sentence after another word was tapped.
+  int _lookupCount = 0;
+
+  Orientation? _lastOrientation;
 
   /// Fraction of the screen width at each side that turns the page on tap.
   static const double _edgeTapWidth = 0.25;
@@ -48,7 +63,14 @@ class _ReaderMokuroNativePageState
     _pageController?.dispose();
     _pageNotifier.dispose();
     _controlsShownNotifier.dispose();
+    _highlightNotifier.dispose();
     super.dispose();
+  }
+
+  @override
+  void clearDictionaryResult() {
+    super.clearDictionaryResult();
+    _highlightNotifier.value = null;
   }
 
   Future<LoadedMokuroVolume> loadVolume() async {
@@ -79,6 +101,14 @@ class _ReaderMokuroNativePageState
 
   @override
   Widget build(BuildContext context) {
+    Orientation orientation = MediaQuery.of(context).orientation;
+    if (orientation != _lastOrientation) {
+      if (_lastOrientation != null) {
+        clearDictionaryResult();
+      }
+      _lastOrientation = orientation;
+    }
+
     return WillPopScope(
       onWillPop: onWillPop,
       child: FutureBuilder<LoadedMokuroVolume>(
@@ -118,18 +148,23 @@ class _ReaderMokuroNativePageState
             reverse: _rightToLeft,
             itemCount: pages.length,
             onPageChanged: onPageChanged,
-            itemBuilder: (context, index) => buildPage(loaded, pages[index]),
+            itemBuilder: (context, index) => buildPage(loaded, index),
           ),
         ),
         Align(
           alignment: Alignment.bottomCenter,
           child: buildControls(loaded),
         ),
+        Padding(
+          padding: Spacing.of(context).insets.onlyTop.extraBig * 1.5,
+          child: buildDictionary(),
+        ),
       ],
     );
   }
 
-  Widget buildPage(LoadedMokuroVolume loaded, MokuroPage page) {
+  Widget buildPage(LoadedMokuroVolume loaded, int index) {
+    MokuroPage page = loaded.volume.pages[index];
     Widget image = Image(
       image: loaded.images.imageForPage(page),
       fit: BoxFit.contain,
@@ -154,8 +189,17 @@ class _ReaderMokuroNativePageState
     /// image pixels can be laid over it.
     return Center(
       child: AspectRatio(
+        key: _pageKeys.putIfAbsent(index, GlobalKey.new),
         aspectRatio: page.imgWidth / page.imgHeight,
-        child: image,
+        child: CustomPaint(
+          foregroundPainter: _MokuroHighlightPainter(
+            highlight: _highlightNotifier,
+            pageIndex: index,
+            pageSize: page.size,
+            color: theme.colorScheme.primary,
+          ),
+          child: image,
+        ),
       ),
     );
   }
@@ -211,6 +255,16 @@ class _ReaderMokuroNativePageState
   }
 
   void onTapUp(TapUpDetails details) {
+    if (lookUpAt(details.globalPosition)) {
+      return;
+    }
+
+    if (isDictionaryShown) {
+      clearDictionaryResult();
+      mediaSource.clearCurrentSentence();
+      return;
+    }
+
     double width = MediaQuery.of(context).size.width;
     double x = details.globalPosition.dx;
 
@@ -250,6 +304,10 @@ class _ReaderMokuroNativePageState
   }
 
   void onPageChanged(int page) {
+    if (isDictionaryShown || _highlightNotifier.value != null) {
+      clearDictionaryResult();
+    }
+
     _pageNotifier.value = page;
     precachePages(page);
 
@@ -277,5 +335,222 @@ class _ReaderMokuroNativePageState
         );
       }
     }
+  }
+
+  /// Look up the word at [globalPosition] if it is on text of the current
+  /// page. Returns whether text was there.
+  bool lookUpAt(Offset globalPosition) {
+    LoadedMokuroVolume? loaded = _loaded;
+    if (loaded == null) {
+      return false;
+    }
+
+    int pageIndex = _pageNotifier.value;
+    MokuroPage page = loaded.volume.pages[pageIndex];
+    RenderObject? renderObject =
+        _pageKeys[pageIndex]?.currentContext?.findRenderObject();
+    if (renderObject is! RenderBox || page.imgWidth <= 0) {
+      return false;
+    }
+
+    Offset local = renderObject.globalToLocal(globalPosition);
+    Size size = renderObject.size;
+    if (!size.contains(local) || size.width == 0) {
+      return false;
+    }
+
+    double scale = page.imgWidth / size.width;
+    MokuroPageLayout layout = _pageLayouts.putIfAbsent(
+      pageIndex,
+      () => MokuroPageLayout(
+        page,
+        separator: appModel.targetLanguage.isSpaceDelimited ? ' ' : '',
+      ),
+    );
+
+    MokuroTextHit? hit = layout.hitTest(local * scale);
+    if (hit == null) {
+      return false;
+    }
+
+    lookUp(
+      hit: hit,
+      page: page,
+      pageIndex: pageIndex,
+      globalPosition: globalPosition,
+    );
+    return true;
+  }
+
+  void lookUp({
+    required MokuroTextHit hit,
+    required MokuroPage page,
+    required int pageIndex,
+    required Offset globalPosition,
+  }) {
+    MokuroBlockLayout layout = hit.layout;
+    String text = layout.text;
+    int index = hit.index;
+
+    _MokuroHighlight? current = _highlightNotifier.value;
+    bool sameWord = current != null &&
+        current.layout == layout &&
+        index >= current.start &&
+        index < current.end;
+    if (sameWord && isDictionaryShown) {
+      clearDictionaryResult();
+      mediaSource.clearCurrentSentence();
+      return;
+    }
+
+    String searchTerm = appModel.targetLanguage.getSearchTermFromIndex(
+      text: text,
+      index: index,
+    );
+    if (searchTerm.trim().isEmpty) {
+      clearDictionaryResult();
+      mediaSource.clearCurrentSentence();
+      return;
+    }
+
+    int whitespaceOffset = searchTerm.length - searchTerm.trimLeft().length;
+    int start =
+        appModel.targetLanguage.getStartingIndex(text: text, index: index) +
+            whitespaceOffset;
+    int length = appModel.targetLanguage.getGuessHighlightLength(
+      searchTerm: searchTerm,
+    );
+
+    int lookupId = ++_lookupCount;
+    highlight(
+        pageIndex: pageIndex, layout: layout, start: start, length: length);
+    mediaSource.setExtraData(page.imgPath);
+
+    searchDictionaryResult(
+      searchTerm: searchTerm,
+      position: popupPositionFor(globalPosition),
+    ).then((_) {
+      if (!mounted || lookupId != _lookupCount) {
+        return;
+      }
+
+      length = appModel.targetLanguage.getFinalHighlightLength(
+        result: currentResult,
+        searchTerm: searchTerm,
+      );
+      highlight(
+        pageIndex: pageIndex,
+        layout: layout,
+        start: start,
+        length: length,
+      );
+
+      int end = (start + length).clamp(start, text.length);
+      mediaSource.setCurrentSentence(
+        selection: appModel.targetLanguage.getSentenceFromParagraph(
+          paragraph: text,
+          index: index,
+          startOffset: start,
+          endOffset: end,
+        ),
+      );
+    });
+  }
+
+  void highlight({
+    required int pageIndex,
+    required MokuroBlockLayout layout,
+    required int start,
+    required int length,
+  }) {
+    if (!mediaSource.highlightOnTap) {
+      return;
+    }
+
+    _highlightNotifier.value = _MokuroHighlight(
+      pageIndex: pageIndex,
+      layout: layout,
+      start: start,
+      end: (start + length).clamp(start, layout.text.length),
+    );
+  }
+
+  /// Show the dictionary on the side of the screen away from the tapped word.
+  JidoujishoPopupPosition popupPositionFor(Offset globalPosition) {
+    Size screen = MediaQuery.of(context).size;
+    if (MediaQuery.of(context).orientation == Orientation.portrait) {
+      return globalPosition.dy < screen.height * 0.6
+          ? JidoujishoPopupPosition.bottomHalf
+          : JidoujishoPopupPosition.topHalf;
+    } else {
+      return globalPosition.dx < screen.width / 2
+          ? JidoujishoPopupPosition.rightHalf
+          : JidoujishoPopupPosition.leftHalf;
+    }
+  }
+}
+
+/// The looked up word on a page.
+class _MokuroHighlight {
+  _MokuroHighlight({
+    required this.pageIndex,
+    required this.layout,
+    required this.start,
+    required this.end,
+  });
+
+  final int pageIndex;
+  final MokuroBlockLayout layout;
+
+  /// Range of the word in [MokuroBlockLayout.text].
+  final int start;
+  final int end;
+}
+
+/// Draws the looked up word over the page image, if it is on this page.
+class _MokuroHighlightPainter extends CustomPainter {
+  _MokuroHighlightPainter({
+    required this.highlight,
+    required this.pageIndex,
+    required this.pageSize,
+    required this.color,
+  }) : super(repaint: highlight);
+
+  final ValueListenable<_MokuroHighlight?> highlight;
+  final int pageIndex;
+
+  /// Size of the page image, which highlight outlines are given in.
+  final Size pageSize;
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    _MokuroHighlight? value = highlight.value;
+    if (value == null || value.pageIndex != pageIndex || pageSize.isEmpty) {
+      return;
+    }
+
+    double scale = size.width / pageSize.width;
+    Paint fill = Paint()..color = color.withOpacity(0.3);
+    Paint outline = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.5;
+
+    for (List<Offset> corners
+        in value.layout.highlightOutlines(value.start, value.end)) {
+      Path path = Path()
+        ..addPolygon(corners.map((corner) => corner * scale).toList(), true);
+      canvas.drawPath(path, fill);
+      canvas.drawPath(path, outline);
+    }
+  }
+
+  @override
+  bool shouldRepaint(_MokuroHighlightPainter oldDelegate) {
+    return oldDelegate.highlight != highlight ||
+        oldDelegate.pageIndex != pageIndex ||
+        oldDelegate.pageSize != pageSize ||
+        oldDelegate.color != color;
   }
 }
