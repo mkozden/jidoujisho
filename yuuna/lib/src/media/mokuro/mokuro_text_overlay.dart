@@ -5,16 +5,17 @@ import 'package:yuuna/media.dart';
 
 /// A character of recognised text placed on a page, in image pixels.
 class MokuroGlyph {
-  /// Place [character] centred on [centre], in a square cell of [size].
+  /// Place [text] centred on [centre], in a square cell of [size].
   MokuroGlyph({
-    required this.character,
+    required this.text,
     required this.centre,
     required this.size,
     required this.angle,
   });
 
-  /// The character drawn.
-  final String character;
+  /// The text drawn: a single character, or a run of marks set side by side
+  /// in one cell of vertical text.
+  final String text;
 
   /// Centre of the character's cell.
   final Offset centre;
@@ -56,6 +57,7 @@ class MokuroTextOverlay {
       MokuroLineShape shape = layout.shapes[i];
       List<String> characters =
           layout.block.lines[i].runes.map(String.fromCharCode).toList();
+      List<int> cellStarts = layout.cellStarts[i];
       if (characters.isEmpty) {
         continue;
       }
@@ -73,24 +75,27 @@ class MokuroTextOverlay {
       double lineAngle = vertical
           ? math.atan2(-direction.dx, direction.dy)
           : math.atan2(direction.dy, direction.dx);
-      double cell = length / characters.length;
+      double cell = length / cellStarts.length;
       double size = math.min(cell, thickness);
 
-      for (int k = 0; k < characters.length; k++) {
-        String character = characters[k];
+      for (int k = 0; k < cellStarts.length; k++) {
+        int end =
+            k + 1 < cellStarts.length ? cellStarts[k + 1] : characters.length;
+        String text = characters.sublist(cellStarts[k], end).join();
+        bool single = end - cellStarts[k] == 1;
         Offset centre =
-            Offset.lerp(shape.start, shape.end, (k + 0.5) / characters.length)!;
+            Offset.lerp(shape.start, shape.end, (k + 0.5) / cellStarts.length)!;
         double angle = lineAngle;
 
-        if (vertical && sidewaysInVerticalText.contains(character)) {
+        if (vertical && single && sidewaysInVerticalText.contains(text)) {
           angle += math.pi / 2;
         }
-        if (vertical && upperRightInVerticalText.contains(character)) {
+        if (vertical && single && upperRightInVerticalText.contains(text)) {
           centre += _rotate(Offset(size * 0.3, -size * 0.3), lineAngle);
         }
 
         glyphs.add(MokuroGlyph(
-          character: character,
+          text: text,
           centre: centre,
           size: size,
           angle: angle,
@@ -133,7 +138,7 @@ class MokuroTextOverlay {
       }
 
       TextPainter painter = _painterFor(_GlyphStyle(
-        character: glyph.character,
+        text: glyph.text,
         fontSize: fontSize,
         color: foreground,
       ));
@@ -141,6 +146,10 @@ class MokuroTextOverlay {
       canvas.save();
       canvas.translate(glyph.centre.dx * scale, glyph.centre.dy * scale);
       canvas.rotate(glyph.angle);
+      if (glyph.text.runes.length > 1 && painter.width > fontSize) {
+        /// Squeeze marks set side by side to the width of one character.
+        canvas.scale(fontSize / painter.width, 1);
+      }
       painter.paint(canvas, Offset(-painter.width / 2, -painter.height / 2));
       canvas.restore();
     }
@@ -150,7 +159,7 @@ class MokuroTextOverlay {
     return _painters.putIfAbsent(style, () {
       return TextPainter(
         text: TextSpan(
-          text: style.character,
+          text: style.text,
           style: TextStyle(
             fontFamily: fontFamily,
             fontSize: style.fontSize,
@@ -183,12 +192,12 @@ class MokuroTextOverlay {
 
 class _GlyphStyle {
   _GlyphStyle({
-    required this.character,
+    required this.text,
     required double fontSize,
     required this.color,
   }) : fontSize = (fontSize * 2).roundToDouble() / 2;
 
-  final String character;
+  final String text;
 
   /// Rounded to half a pixel, so that nearby sizes share a painter.
   final double fontSize;
@@ -197,10 +206,10 @@ class _GlyphStyle {
   @override
   bool operator ==(Object other) =>
       other is _GlyphStyle &&
-      other.character == character &&
+      other.text == text &&
       other.fontSize == fontSize &&
       other.color == color;
 
   @override
-  int get hashCode => Object.hash(character, fontSize, color);
+  int get hashCode => Object.hash(text, fontSize, color);
 }

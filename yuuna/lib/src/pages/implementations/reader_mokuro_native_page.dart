@@ -970,7 +970,7 @@ class _MokuroPagePainter extends CustomPainter {
               shape.corners.map((corner) => corner * scale).toList(), true);
         canvas.drawPath(path, linePaint);
 
-        int count = block.block.lines[i].runes.length;
+        int count = block.cellStarts[i].length;
         for (int k = 1; k < count; k++) {
           List<Offset> cell = shape.segment(k / count, k / count);
           canvas.drawLine(cell[0] * scale, cell[1] * scale, characterPaint);

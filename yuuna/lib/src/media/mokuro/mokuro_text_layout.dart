@@ -210,6 +210,9 @@ class MokuroBlockLayout {
       bounds: bounds,
       shapes: shapes,
       lineStarts: lineStarts,
+      cellStarts: block.lines
+          .map((line) => cellStartsOf(line, vertical: block.vertical))
+          .toList(),
       text: buffer.toString(),
     );
   }
@@ -219,8 +222,13 @@ class MokuroBlockLayout {
     required this.bounds,
     required this.shapes,
     required this.lineStarts,
+    required this.cellStarts,
     required this.text,
   });
+
+  /// Marks that are set side by side in a single cell when they come in a run
+  /// in vertical text, as in printed Japanese.
+  static const String uprightRunsInVerticalText = '!?！？';
 
   /// The block laid out.
   final MokuroBlock block;
@@ -233,6 +241,10 @@ class MokuroBlockLayout {
 
   /// Offset in [text] where each line starts.
   final List<int> lineStarts;
+
+  /// For each line, the index of the character that starts each of its cells.
+  /// See [cellStartsOf].
+  final List<List<int>> cellStarts;
 
   /// All lines of the block joined together.
   final String text;
@@ -263,14 +275,14 @@ class MokuroBlockLayout {
       return null;
     }
 
-    String line = block.lines[lineIndex];
-    List<int> starts = _runeStarts(line);
+    List<int> starts = _runeStarts(block.lines[lineIndex]);
+    List<int> cells = cellStarts[lineIndex];
     double progress = shapes[lineIndex].progressAt(point);
-    int rune = (progress * starts.length).floor().clamp(0, starts.length - 1);
+    int cell = (progress * cells.length).floor().clamp(0, cells.length - 1);
 
     return MokuroTextHit(
       layout: this,
-      index: lineStarts[lineIndex] + starts[rune],
+      index: lineStarts[lineIndex] + starts[cells[cell]],
     );
   }
 
@@ -288,10 +300,16 @@ class MokuroBlockLayout {
         continue;
       }
 
+      /// Cover every cell holding part of the text, from the one its first
+      /// character is in to the one its last character is in.
       List<int> starts = _runeStarts(line);
-      double fromFraction = _runeIndexAt(starts, from) / starts.length;
-      double toFraction = _runeIndexAt(starts, to) / starts.length;
-      outlines.add(shapes[i].segment(fromFraction, toFraction));
+      List<int> cells = cellStarts[i];
+      int fromCell = _countBelow(cells, _countBelow(starts, from) + 1) - 1;
+      int toCell = _countBelow(cells, _countBelow(starts, to));
+      outlines.add(shapes[i].segment(
+        fromCell / cells.length,
+        toCell / cells.length,
+      ));
     }
     return outlines;
   }
@@ -308,10 +326,41 @@ class MokuroBlockLayout {
     return starts;
   }
 
-  /// Number of characters starting before [offset].
-  static int _runeIndexAt(List<int> starts, int offset) {
+  /// Indices of the characters of [line] that each start a cell, the space
+  /// one character takes up on the page. In [vertical] text, a run of two or
+  /// more exclamation and question marks is set across the line, two or three
+  /// to a cell, so that `！！` takes up as much room as one character.
+  static List<int> cellStartsOf(String line, {required bool vertical}) {
+    List<int> runes = line.runes.toList();
+    List<int> starts = [];
+    int index = 0;
+    while (index < runes.length) {
+      int run = 0;
+      while (vertical &&
+          index + run < runes.length &&
+          uprightRunsInVerticalText.runes.contains(runes[index + run])) {
+        run++;
+      }
+
+      if (run < 2) {
+        starts.add(index);
+        index++;
+        continue;
+      }
+
+      int cells = run ~/ 2;
+      for (int cell = 0; cell < cells; cell++) {
+        starts.add(index + run * cell ~/ cells);
+      }
+      index += run;
+    }
+    return starts;
+  }
+
+  /// Number of values in the ascending [values] that are below [limit].
+  static int _countBelow(List<int> values, int limit) {
     int count = 0;
-    while (count < starts.length && starts[count] < offset) {
+    while (count < values.length && values[count] < limit) {
       count++;
     }
     return count;
