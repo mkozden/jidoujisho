@@ -374,6 +374,8 @@
     "mokuro_two_pages_in_landscape": "Show two pages in landscape",
     "mokuro_first_page_is_cover": "Show the first page on its own",
     "mokuro_show_text_outlines": "Show recognised text outlines",
+    "mokuro_show_recognised_text": "Show recognised text (or long press a block)",
+    "mokuro_invert_page_colours": "Invert page colours",
     "create_catalog": "Create Catalog",
     "adapt_ttu_theme": "Adapt dictionary popup to theme",
     "sentence_picker": "Sentence Picker",

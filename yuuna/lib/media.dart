@@ -27,4 +27,5 @@ export 'src/media/mokuro/mokuro_volume.dart';
 export 'src/media/mokuro/mokuro_archive_page_images.dart';
 export 'src/media/mokuro/mokuro_text_layout.dart';
 export 'src/media/mokuro/mokuro_spreads.dart';
+export 'src/media/mokuro/mokuro_text_overlay.dart';
 export 'src/media/sources/viewer_camera_source.dart';

@@ -20,8 +20,7 @@ class ReaderMokuroNativePage extends BaseSourcePage {
 }
 
 class _ReaderMokuroNativePageState
-    extends BaseSourcePageState<ReaderMokuroNativePage>
-    with WidgetsBindingObserver {
+    extends BaseSourcePageState<ReaderMokuroNativePage> {
   ReaderMokuroNativeSource get mediaSource => ReaderMokuroNativeSource.instance;
 
   late final Future<LoadedMokuroVolume> _volumeFuture;
@@ -52,8 +51,23 @@ class _ReaderMokuroNativePageState
   /// Zoom and pan of the shown spread.
   final TransformationController _zoomController = TransformationController();
 
-  /// Receives the volume buttons for turning pages.
-  final FocusNode _focusNode = FocusNode();
+  /// The block whose recognised text was shown by a long press.
+  final ValueNotifier<_ShownText?> _shownTextNotifier =
+      ValueNotifier<_ShownText?>(null);
+
+  /// Draws recognised text over pages, made when first needed.
+  MokuroTextOverlay? _textOverlay;
+
+  MokuroTextOverlay get textOverlay => _textOverlay ??= MokuroTextOverlay(
+        fontFamily: appModelNoUpdate.targetLanguage.defaultFontFamily,
+      );
+
+  /// Pages decoded at their full size, rather than the size of the screen,
+  /// as they have been zoomed into.
+  final Set<int> _fullResolutionPages = {};
+
+  /// Zoom from which the shown pages are decoded at their full size.
+  static const double _fullResolutionZoom = 1.5;
 
   /// Keys of the shown pages' image boxes, for placing taps on them.
   final Map<int, GlobalKey> _pageKeys = {};
@@ -73,52 +87,22 @@ class _ReaderMokuroNativePageState
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addObserver(this);
+    HardwareKeyboard.instance.addHandler(onKeyEvent);
     _volumeFuture = loadVolume();
   }
 
   @override
   void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
+    HardwareKeyboard.instance.removeHandler(onKeyEvent);
     _loaded?.images.close();
     _pageController?.dispose();
     _pageNotifier.dispose();
     _controlsShownNotifier.dispose();
     _highlightNotifier.dispose();
     _zoomController.dispose();
-    _focusNode.dispose();
+    _shownTextNotifier.dispose();
+    _textOverlay?.dispose();
     super.dispose();
-  }
-
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    super.didChangeAppLifecycleState(state);
-    if (state == AppLifecycleState.resumed) {
-      _focusNode.requestFocus();
-    }
-  }
-
-  @override
-  void onCreatorClose() {
-    _focusNode.requestFocus();
-  }
-
-  @override
-  void onSearch(String searchTerm, {String? sentence = ''}) async {
-    if (appModel.isMediaOpen) {
-      await SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
-      await Future.delayed(const Duration(milliseconds: 5), () {});
-    }
-    await appModel.openRecursiveDictionarySearch(
-      searchTerm: searchTerm,
-      killOnPop: false,
-    );
-    if (appModel.isMediaOpen) {
-      await Future.delayed(const Duration(milliseconds: 5), () {});
-      await SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
-    }
-
-    _focusNode.requestFocus();
   }
 
   @override
@@ -159,38 +143,37 @@ class _ReaderMokuroNativePageState
       _lastOrientation = orientation;
     }
 
-    return Focus(
-      autofocus: true,
-      focusNode: _focusNode,
-      onKey: onKey,
-      child: WillPopScope(
-        onWillPop: onWillPop,
-        child: FutureBuilder<LoadedMokuroVolume>(
-          future: _volumeFuture,
-          builder: (context, snapshot) {
-            if (snapshot.hasError) {
-              return Scaffold(
-                appBar: AppBar(title: Text(widget.item?.title ?? '')),
-                body: buildError(error: snapshot.error),
-              );
-            }
-            if (!snapshot.hasData || _loaded == null) {
-              return Scaffold(body: buildLoading());
-            }
-
-            LoadedMokuroVolume loaded = snapshot.data!;
-            updateSpreads(loaded, orientation);
-
+    return WillPopScope(
+      onWillPop: onWillPop,
+      child: FutureBuilder<LoadedMokuroVolume>(
+        future: _volumeFuture,
+        builder: (context, snapshot) {
+          if (snapshot.hasError) {
             return Scaffold(
-              backgroundColor: Colors.black,
-              resizeToAvoidBottomInset: false,
-              body: buildReader(loaded),
+              appBar: AppBar(title: Text(widget.item?.title ?? '')),
+              body: buildError(error: snapshot.error),
             );
-          },
-        ),
+          }
+          if (!snapshot.hasData || _loaded == null) {
+            return Scaffold(body: buildLoading());
+          }
+
+          LoadedMokuroVolume loaded = snapshot.data!;
+          updateSpreads(loaded, orientation);
+
+          return Scaffold(
+            backgroundColor: EinkMode.enabled
+                ? EinkMode.surfaceColor(dark: isDark)
+                : Colors.black,
+            resizeToAvoidBottomInset: false,
+            body: buildReader(loaded),
+          );
+        },
       ),
     );
   }
+
+  bool get isDark => theme.brightness == Brightness.dark;
 
   /// Make the spreads for the current settings and orientation, keeping the
   /// current page in view.
@@ -239,6 +222,8 @@ class _ReaderMokuroNativePageState
           itemCount: _spreads.length,
           onPageChanged: onPageChanged,
           onTapUp: onTapUp,
+          onLongPressStart: onLongPressStart,
+          onZoomEnd: onZoomEnd,
           itemBuilder: (context, index) => buildSpread(loaded, index),
         ),
         Align(
@@ -292,7 +277,7 @@ class _ReaderMokuroNativePageState
   }) {
     MokuroPage page = loaded.volume.pages[index];
     Widget image = Image(
-      image: loaded.images.imageForPage(page),
+      image: pageImage(loaded, index),
       fit: BoxFit.contain,
       alignment: alignment,
       filterQuality: FilterQuality.medium,
@@ -308,30 +293,71 @@ class _ReaderMokuroNativePageState
       },
     );
 
+    bool inverted = mediaSource.invertPageColours;
+    if (inverted) {
+      image = ColorFiltered(
+        colorFilter: const ColorFilter.matrix([
+          -1, 0, 0, 0, 255, //
+          0, -1, 0, 0, 255, //
+          0, 0, -1, 0, 255, //
+          0, 0, 0, 1, 0, //
+        ]),
+        child: image,
+      );
+    }
+
     if (page.imgWidth <= 0 || page.imgHeight <= 0) {
       return image;
     }
 
     /// Sized to the page's own aspect ratio, so that text positions given in
-    /// image pixels can be laid over it.
+    /// image pixels can be laid over it. Kept apart from the zoom when
+    /// painting, so that pinching does not redraw the text over it.
     return Align(
       alignment: alignment,
       child: AspectRatio(
         key: _pageKeys.putIfAbsent(index, GlobalKey.new),
         aspectRatio: page.imgWidth / page.imgHeight,
-        child: CustomPaint(
-          foregroundPainter: _MokuroPagePainter(
-            highlight: _highlightNotifier,
-            pageIndex: index,
-            pageSize: page.size,
-            color: theme.colorScheme.primary,
-            outlines: mediaSource.showTextOutlines
-                ? pageLayoutOf(loaded, index)
-                : null,
+        child: RepaintBoundary(
+          child: CustomPaint(
+            foregroundPainter: _MokuroPagePainter(
+              highlight: _highlightNotifier,
+              shownText: _shownTextNotifier,
+              pageIndex: index,
+              pageSize: page.size,
+              layout: pageLayoutOf(loaded, index),
+              textOverlay: textOverlay,
+              showAllText: mediaSource.showRecognisedText,
+              showOutlines: mediaSource.showTextOutlines,
+              inverted: inverted,
+              highlightColor: EinkMode.enabled
+                  ? (inverted ? Colors.white : Colors.black)
+                  : theme.colorScheme.primary,
+              highlightFilled: !EinkMode.enabled,
+            ),
+            child: image,
           ),
-          child: image,
         ),
       ),
+    );
+  }
+
+  /// The image of page [index], decoded at the size of the screen unless it
+  /// has been zoomed into, to keep the memory held by large scans down.
+  ImageProvider pageImage(LoadedMokuroVolume loaded, int index) {
+    ImageProvider image =
+        loaded.images.imageForPage(loaded.volume.pages[index]);
+    if (_fullResolutionPages.contains(index)) {
+      return image;
+    }
+
+    MediaQueryData media = MediaQuery.of(context);
+    Size screen = media.size * media.devicePixelRatio;
+    return ResizeImage(
+      image,
+      width: screen.width.ceil(),
+      height: screen.height.ceil(),
+      policy: ResizeImagePolicy.fit,
     );
   }
 
@@ -345,8 +371,19 @@ class _ReaderMokuroNativePageState
           return const SizedBox.shrink();
         }
 
+        Color foreground = EinkMode.enabled
+            ? EinkMode.foregroundColor(dark: isDark)
+            : Colors.white;
+
         return Container(
-          color: Colors.black.withOpacity(0.75),
+          decoration: BoxDecoration(
+            color: EinkMode.enabled
+                ? EinkMode.surfaceColor(dark: isDark)
+                : Colors.black.withOpacity(0.75),
+            border: EinkMode.enabled
+                ? Border(top: EinkMode.border(dark: isDark))
+                : null,
+          ),
           padding: Spacing.of(context).insets.all.normal,
           child: SafeArea(
             top: false,
@@ -366,7 +403,7 @@ class _ReaderMokuroNativePageState
                         Expanded(
                           child: Text(
                             '${widget.item?.title ?? ''}  $pages / $pageCount',
-                            style: const TextStyle(color: Colors.white),
+                            style: TextStyle(color: foreground),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),
@@ -374,7 +411,7 @@ class _ReaderMokuroNativePageState
                         JidoujishoIconButton(
                           tooltip: t.tweaks,
                           icon: Icons.tune,
-                          enabledColor: Colors.white,
+                          enabledColor: foreground,
                           onTap: openSettings,
                         ),
                       ],
@@ -413,42 +450,66 @@ class _ReaderMokuroNativePageState
 
     clearDictionaryResult();
     setState(() {});
-    _focusNode.requestFocus();
   }
 
-  KeyEventResult onKey(FocusNode node, RawKeyEvent event) {
-    if (!(ModalRoute.of(context)?.isCurrent ?? false) ||
-        !mediaSource.volumePageTurningEnabled) {
-      return KeyEventResult.ignored;
+  /// Turn pages with the volume buttons, the page up and down keys and the
+  /// arrow keys, which page turn buttons on e-readers often send. Handled
+  /// for the whole app while the reader is on top, rather than through
+  /// focus, so that the keys reach the reader whatever has focus.
+  bool onKeyEvent(KeyEvent event) {
+    if (!mounted ||
+        _loaded == null ||
+        !(ModalRoute.of(context)?.isCurrent ?? false)) {
+      return false;
     }
 
-    bool up = event.isKeyPressed(LogicalKeyboardKey.audioVolumeUp);
-    bool down = event.isKeyPressed(LogicalKeyboardKey.audioVolumeDown);
-    if (!up && !down) {
-      return KeyEventResult.ignored;
+    LogicalKeyboardKey key = event.logicalKey;
+    bool volumeUp = key == LogicalKeyboardKey.audioVolumeUp;
+    bool volumeDown = key == LogicalKeyboardKey.audioVolumeDown;
+    bool rightToLeft = mediaSource.rightToLeft;
+
+    int? step;
+    if (volumeUp || volumeDown) {
+      if (!mediaSource.volumePageTurningEnabled) {
+        return false;
+      }
+
+      /// Volume up turns to the next page unless inverted, as in the web
+      /// Mokuro reader.
+      step = volumeUp != mediaSource.volumePageTurningInverted ? 1 : -1;
+    } else if (key == LogicalKeyboardKey.pageDown) {
+      step = 1;
+    } else if (key == LogicalKeyboardKey.pageUp) {
+      step = -1;
+    } else if (key == LogicalKeyboardKey.arrowLeft) {
+      step = rightToLeft ? 1 : -1;
+    } else if (key == LogicalKeyboardKey.arrowRight) {
+      step = rightToLeft ? -1 : 1;
+    }
+
+    if (step == null) {
+      return false;
+    }
+    if (event is KeyUpEvent) {
+      return true;
     }
 
     if (isDictionaryShown) {
       clearDictionaryResult();
       mediaSource.clearCurrentSentence();
-      return KeyEventResult.handled;
+      return true;
     }
 
-    /// Volume up turns to the next page unless inverted, as in the web
-    /// Mokuro reader.
-    bool next = up != mediaSource.volumePageTurningInverted;
-    turnBy(next ? 1 : -1);
-
-    return KeyEventResult.handled;
+    turnBy(step);
+    return true;
   }
 
   void onTapUp(TapUpDetails details) {
-    _focusNode.requestFocus();
-
     if (lookUpAt(details.globalPosition)) {
       return;
     }
 
+    _shownTextNotifier.value = null;
     if (isDictionaryShown) {
       clearDictionaryResult();
       mediaSource.clearCurrentSentence();
@@ -502,6 +563,8 @@ class _ReaderMokuroNativePageState
       clearDictionaryResult();
     }
     resetZoom();
+    _shownTextNotifier.value = null;
+    _fullResolutionPages.clear();
 
     _spreadIndex = spreadIndex;
     int page = _spreads[spreadIndex].first;
@@ -535,7 +598,7 @@ class _ReaderMokuroNativePageState
       }
       for (int page in _spreads[index]) {
         precacheImage(
-          loaded.images.imageForPage(loaded.volume.pages[page]),
+          pageImage(loaded, page),
           context,
           onError: (error, stackTrace) {},
         );
@@ -554,12 +617,12 @@ class _ReaderMokuroNativePageState
     );
   }
 
-  /// Look up the word at [globalPosition] if it is on text of a shown page.
-  /// Returns whether text was there.
-  bool lookUpAt(Offset globalPosition) {
+  /// The text at [globalPosition] on a shown page, along with the index of
+  /// that page, or null if there is no text there.
+  ({int pageIndex, MokuroTextHit hit})? textAt(Offset globalPosition) {
     LoadedMokuroVolume? loaded = _loaded;
     if (loaded == null || _spreads.isEmpty) {
-      return false;
+      return null;
     }
 
     for (int pageIndex in _spreads[_spreadIndex]) {
@@ -580,20 +643,57 @@ class _ReaderMokuroNativePageState
       MokuroTextHit? hit = pageLayoutOf(loaded, pageIndex).hitTest(
         local * scale,
       );
-      if (hit == null) {
-        return false;
-      }
-
-      lookUp(
-        hit: hit,
-        page: page,
-        pageIndex: pageIndex,
-        globalPosition: globalPosition,
-      );
-      return true;
+      return hit == null ? null : (pageIndex: pageIndex, hit: hit);
     }
 
-    return false;
+    return null;
+  }
+
+  /// Look up the word at [globalPosition] if it is on text of a shown page.
+  /// Returns whether text was there.
+  bool lookUpAt(Offset globalPosition) {
+    ({int pageIndex, MokuroTextHit hit})? target = textAt(globalPosition);
+    if (target == null) {
+      return false;
+    }
+
+    lookUp(
+      hit: target.hit,
+      page: _loaded!.volume.pages[target.pageIndex],
+      pageIndex: target.pageIndex,
+      globalPosition: globalPosition,
+    );
+    return true;
+  }
+
+  /// Show or hide the recognised text of the block that was long pressed.
+  void onLongPressStart(LongPressStartDetails details) {
+    ({int pageIndex, MokuroTextHit hit})? target =
+        textAt(details.globalPosition);
+    if (target == null) {
+      return;
+    }
+
+    MokuroBlockLayout layout = target.hit.layout;
+    _shownTextNotifier.value = _shownTextNotifier.value?.layout == layout
+        ? null
+        : _ShownText(pageIndex: target.pageIndex, layout: layout);
+    HapticFeedback.selectionClick();
+  }
+
+  /// Decode the shown pages at their full size once zoomed into far enough
+  /// for the screen-sized image to look soft.
+  void onZoomEnd(double zoom) {
+    if (zoom < _fullResolutionZoom || _spreads.isEmpty) {
+      return;
+    }
+
+    List<int> pages = _spreads[_spreadIndex];
+    if (_fullResolutionPages.containsAll(pages)) {
+      return;
+    }
+
+    setState(() => _fullResolutionPages.addAll(pages));
   }
 
   void lookUp({
@@ -721,27 +821,62 @@ class _MokuroHighlight {
   final int end;
 }
 
-/// Draws over a page image: the looked up word, if it is on this page, and
-/// the outlines of the recognised text if [outlines] is given.
+/// A block whose recognised text is shown.
+class _ShownText {
+  _ShownText({
+    required this.pageIndex,
+    required this.layout,
+  });
+
+  final int pageIndex;
+  final MokuroBlockLayout layout;
+}
+
+/// Draws over a page image: recognised text if asked for, the outlines of
+/// the recognised text if asked for, and the looked up word, each where they
+/// are on this page.
 class _MokuroPagePainter extends CustomPainter {
   _MokuroPagePainter({
     required this.highlight,
+    required this.shownText,
     required this.pageIndex,
     required this.pageSize,
-    required this.color,
-    this.outlines,
-  }) : super(repaint: highlight);
+    required this.layout,
+    required this.textOverlay,
+    required this.showAllText,
+    required this.showOutlines,
+    required this.inverted,
+    required this.highlightColor,
+    required this.highlightFilled,
+  }) : super(repaint: Listenable.merge([highlight, shownText]));
 
   final ValueListenable<_MokuroHighlight?> highlight;
+  final ValueListenable<_ShownText?> shownText;
   final int pageIndex;
 
   /// Size of the page image, which all outlines are given in.
   final Size pageSize;
-  final Color color;
 
-  /// Layout of the page's text, to draw where lines and characters were
-  /// recognised.
-  final MokuroPageLayout? outlines;
+  /// Layout of the page's text.
+  final MokuroPageLayout layout;
+
+  final MokuroTextOverlay textOverlay;
+
+  /// Whether the text of every block is drawn, rather than only a block
+  /// that was long pressed.
+  final bool showAllText;
+
+  /// Whether to draw where lines and characters were recognised.
+  final bool showOutlines;
+
+  /// Whether the page image is shown with inverted colours, so text is
+  /// drawn light on dark to match.
+  final bool inverted;
+
+  final Color highlightColor;
+
+  /// Whether the highlight is filled in, or only outlined.
+  final bool highlightFilled;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -750,7 +885,8 @@ class _MokuroPagePainter extends CustomPainter {
     }
 
     double scale = size.width / pageSize.width;
-    if (outlines != null) {
+    paintText(canvas, scale);
+    if (showOutlines) {
       paintOutlines(canvas, scale);
     }
 
@@ -759,18 +895,43 @@ class _MokuroPagePainter extends CustomPainter {
       return;
     }
 
-    Paint fill = Paint()..color = color.withOpacity(0.3);
+    Paint fill = Paint()..color = highlightColor.withOpacity(0.3);
     Paint outline = Paint()
-      ..color = color
+      ..color = highlightColor
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.5;
+      ..strokeWidth = highlightFilled ? 1.5 : 2.5;
 
     for (List<Offset> corners
         in value.layout.highlightOutlines(value.start, value.end)) {
       Path path = Path()
         ..addPolygon(corners.map((corner) => corner * scale).toList(), true);
-      canvas.drawPath(path, fill);
+      if (highlightFilled) {
+        canvas.drawPath(path, fill);
+      }
       canvas.drawPath(path, outline);
+    }
+  }
+
+  void paintText(Canvas canvas, double scale) {
+    List<MokuroBlockLayout> blocks;
+    if (showAllText) {
+      blocks = layout.blocks;
+    } else {
+      _ShownText? shown = shownText.value;
+      if (shown == null || shown.pageIndex != pageIndex) {
+        return;
+      }
+      blocks = [shown.layout];
+    }
+
+    for (MokuroBlockLayout block in blocks) {
+      textOverlay.paintBlock(
+        canvas,
+        block,
+        scale: scale,
+        background: inverted ? Colors.black : Colors.white,
+        foreground: inverted ? Colors.white : Colors.black,
+      );
     }
   }
 
@@ -789,7 +950,7 @@ class _MokuroPagePainter extends CustomPainter {
       ..color = Colors.red.withOpacity(0.5)
       ..strokeWidth = 0.5;
 
-    for (MokuroBlockLayout block in outlines!.blocks) {
+    for (MokuroBlockLayout block in layout.blocks) {
       Rect bounds = block.bounds;
       canvas.drawRect(
         Rect.fromLTRB(bounds.left * scale, bounds.top * scale,
@@ -816,9 +977,14 @@ class _MokuroPagePainter extends CustomPainter {
   @override
   bool shouldRepaint(_MokuroPagePainter oldDelegate) {
     return oldDelegate.highlight != highlight ||
+        oldDelegate.shownText != shownText ||
         oldDelegate.pageIndex != pageIndex ||
         oldDelegate.pageSize != pageSize ||
-        oldDelegate.color != color ||
-        oldDelegate.outlines != outlines;
+        oldDelegate.layout != layout ||
+        oldDelegate.showAllText != showAllText ||
+        oldDelegate.showOutlines != showOutlines ||
+        oldDelegate.inverted != inverted ||
+        oldDelegate.highlightColor != highlightColor ||
+        oldDelegate.highlightFilled != highlightFilled;
   }
 }

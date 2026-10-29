@@ -263,6 +263,26 @@ class ReaderMokuroNativeSource extends ReaderMediaSource {
     }
   }
 
+  /// Covers are full page images, so they are decoded at a small size for
+  /// history rather than at the size of the scan.
+  @override
+  ImageProvider<Object> getDisplayThumbnailFromMediaItem({
+    required AppModel appModel,
+    required MediaItem item,
+    String? fallbackUrl,
+    bool noOverride = false,
+  }) {
+    return ResizeImage(
+      super.getDisplayThumbnailFromMediaItem(
+        appModel: appModel,
+        item: item,
+        fallbackUrl: fallbackUrl,
+        noOverride: noOverride,
+      ),
+      width: 480,
+    );
+  }
+
   @override
   String getDisplaySubtitleFromMediaItem(MediaItem item) {
     String? series = item.author;
@@ -352,6 +372,35 @@ class ReaderMokuroNativeSource extends ReaderMediaSource {
     await setPreference<bool>(
       key: 'show_text_outlines',
       value: !showTextOutlines,
+    );
+  }
+
+  /// Whether the recognised text of every block is drawn over the page,
+  /// rather than only for a block that is long pressed.
+  bool get showRecognisedText {
+    return getPreference<bool>(
+        key: 'show_recognised_text', defaultValue: false);
+  }
+
+  /// Toggles drawing the recognised text of every block.
+  void toggleShowRecognisedText() async {
+    await setPreference<bool>(
+      key: 'show_recognised_text',
+      value: !showRecognisedText,
+    );
+  }
+
+  /// Whether pages are shown with their colours inverted, for reading in the
+  /// dark.
+  bool get invertPageColours {
+    return getPreference<bool>(key: 'invert_page_colours', defaultValue: false);
+  }
+
+  /// Toggles inverting page colours.
+  void toggleInvertPageColours() async {
+    await setPreference<bool>(
+      key: 'invert_page_colours',
+      value: !invertPageColours,
     );
   }
 

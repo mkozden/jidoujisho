@@ -92,6 +92,16 @@ class _MokuroNativeSettingsDialogPageState extends BasePageState {
                 onToggle: source.toggleVolumePageTurningInverted,
               ),
               buildSwitch(
+                label: t.mokuro_invert_page_colours,
+                value: () => source.invertPageColours,
+                onToggle: source.toggleInvertPageColours,
+              ),
+              buildSwitch(
+                label: t.mokuro_show_recognised_text,
+                value: () => source.showRecognisedText,
+                onToggle: source.toggleShowRecognisedText,
+              ),
+              buildSwitch(
                 label: t.mokuro_show_text_outlines,
                 value: () => source.showTextOutlines,
                 onToggle: source.toggleShowTextOutlines,

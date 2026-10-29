@@ -15,6 +15,8 @@ class JidoujishoZoomablePageView extends StatefulWidget {
     required this.itemBuilder,
     this.onPageChanged,
     this.onTapUp,
+    this.onLongPressStart,
+    this.onZoomEnd,
     this.reverse = false,
     this.maxScale = 5,
     super.key,
@@ -38,6 +40,12 @@ class JidoujishoZoomablePageView extends StatefulWidget {
 
   /// Called on a tap anywhere on the view.
   final GestureTapUpCallback? onTapUp;
+
+  /// Called when a long press anywhere on the view is recognised.
+  final GestureLongPressStartCallback? onLongPressStart;
+
+  /// Called with the zoom when a pinch or pan ends.
+  final ValueChanged<double>? onZoomEnd;
 
   /// Whether pages are laid out from right to left.
   final bool reverse;
@@ -96,6 +104,7 @@ class _JidoujishoZoomablePageViewState
     if (zoom < JidoujishoZoomablePageView.minimumZoom) {
       widget.zoomController.value = Matrix4.identity();
     }
+    widget.onZoomEnd?.call(zoom);
   }
 
   @override
@@ -107,6 +116,7 @@ class _JidoujishoZoomablePageViewState
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTapUp: widget.onTapUp,
+        onLongPressStart: widget.onLongPressStart,
         child: InteractiveViewer(
           transformationController: widget.zoomController,
           maxScale: widget.maxScale,
