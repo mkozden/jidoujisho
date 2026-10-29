@@ -84,15 +84,23 @@ class ReaderTtuSource extends ReaderMediaSource {
   /// (`yuunaSideBySide` in android/gradle.properties).
   static const String _sideBySidePackageName = 'app.arianneorpilla.yuuna.plus';
 
-  /// Added to the ports of the side-by-side build, so that it can serve its
-  /// reader while the original app is running. Every other build keeps the
-  /// original ports, as web storage is scoped to the origin.
+  /// Package name of the build used for testing feature branches
+  /// (`yuunaDev` in android/gradle.properties).
+  static const String _devPackageName = 'app.arianneorpilla.yuuna.dev';
+
+  /// Added to the ports of the side-by-side and dev builds, so that they can
+  /// serve their readers while the other installs are running. Every other
+  /// build keeps the original ports, as web storage is scoped to the origin.
   int _portOffset = 0;
 
   @override
   Future<void> prepareResources() async {
     final packageInfo = await PackageInfo.fromPlatform();
-    _portOffset = packageInfo.packageName == _sideBySidePackageName ? 100 : 0;
+    _portOffset = switch (packageInfo.packageName) {
+      _sideBySidePackageName => 100,
+      _devPackageName => 200,
+      _ => 0,
+    };
   }
 
   /// Get the port for the current language. This port should ideally not conflict but should remain the same for

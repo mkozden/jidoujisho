@@ -43,12 +43,20 @@ jobs:
           echo "keyAlias=jidoujisho"
           echo "keyPassword=$(echo "$SIGNING_PASSWORD" | tr -d '[:space:]')"
         } > yuuna/android/key.properties
-    - run: flutter build apk --target-platform=android-arm64
-      working-directory: yuuna
-    - name: Show the signing certificate
+    - name: Build APK
       run: |
-        apksigner="$(ls -d "$ANDROID_HOME"/build-tools/*/apksigner | sort -V | tail -1)"
-        "$apksigner" verify --print-certs yuuna/build/app/outputs/flutter-apk/*.apk | grep -i "SHA-256"
+        # Feature branches may turn on yuunaDev to install as a separate test
+        # app; main always builds the everyday app.
+        if [ "$GITHUB_REF" = "refs/heads/main" ]; then
+          export ORG_GRADLE_PROJECT_yuunaDev=false
+        fi
+        flutter build apk --target-platform=android-arm64
+      working-directory: yuuna
+    - name: Show the package name and signing certificate
+      run: |
+        buildtools="$(dirname "$(ls -d "$ANDROID_HOME"/build-tools/*/apksigner | sort -V | tail -1)")"
+        "$buildtools/aapt" dump badging yuuna/build/app/outputs/flutter-apk/*.apk | grep -E "^package:|^application-label:" || true
+        "$buildtools/apksigner" verify --print-certs yuuna/build/app/outputs/flutter-apk/*.apk | grep -i "SHA-256"
     - uses: actions/upload-artifact@v4
       with:
         name: jidoujisho-apk

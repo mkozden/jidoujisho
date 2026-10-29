@@ -1,9 +1,9 @@
 /// Generated file. Do not edit.
 ///
 /// Locales: 1
-/// Strings: 404
+/// Strings: 416
 ///
-/// Built on 2026-10-08 at 15:10 UTC
+/// Built on 2026-10-29 at 14:05 UTC
 
 // coverage:ignore-file
 // ignore_for_file: type=lint
@@ -487,6 +487,18 @@ class _StringsEn implements BaseTranslations<AppLocale, _StringsEn> {
 	String get no_catalogs_listed => 'No catalogs listed';
 	String get go_back => 'Go Back';
 	String get invalid_mokuro_file => 'File is not a Mokuro generated HTML file.';
+	String get invalid_mokuro_volume_file => 'File is not a valid .mokuro file.';
+	String get mokuro_file_missing => 'The .mokuro file of this volume was moved or deleted.';
+	String mokuro_pages_not_found({required Object name}) => 'Cannot find the pages of this volume. Keep them next to the .mokuro file, in a folder, .cbz or .zip named ${name}.';
+	String get mokuro_archive_unreadable => 'Cannot open the archive holding the pages of this volume.';
+	String get mokuro_page_unreadable => 'Cannot show this page.';
+	String get mokuro_right_to_left => 'Read right to left';
+	String get mokuro_two_pages_in_landscape => 'Show two pages in landscape';
+	String get mokuro_first_page_is_cover => 'Show the first page on its own';
+	String get mokuro_show_text_outlines => 'Show recognised text outlines';
+	String get mokuro_show_recognised_text => 'Show recognised text (or long press a block)';
+	String get mokuro_invert_page_colours => 'Invert page colours';
+	String get mokuro_volume_button_page_turning => 'Volume button page turning (unreliable)';
 	String get create_catalog => 'Create Catalog';
 	String get adapt_ttu_theme => 'Adapt dictionary popup to theme';
 	String get sentence_picker => 'Sentence Picker';
@@ -923,6 +935,18 @@ extension on _StringsEn {
 			case 'no_catalogs_listed': return 'No catalogs listed';
 			case 'go_back': return 'Go Back';
 			case 'invalid_mokuro_file': return 'File is not a Mokuro generated HTML file.';
+			case 'invalid_mokuro_volume_file': return 'File is not a valid .mokuro file.';
+			case 'mokuro_file_missing': return 'The .mokuro file of this volume was moved or deleted.';
+			case 'mokuro_pages_not_found': return ({required Object name}) => 'Cannot find the pages of this volume. Keep them next to the .mokuro file, in a folder, .cbz or .zip named ${name}.';
+			case 'mokuro_archive_unreadable': return 'Cannot open the archive holding the pages of this volume.';
+			case 'mokuro_page_unreadable': return 'Cannot show this page.';
+			case 'mokuro_right_to_left': return 'Read right to left';
+			case 'mokuro_two_pages_in_landscape': return 'Show two pages in landscape';
+			case 'mokuro_first_page_is_cover': return 'Show the first page on its own';
+			case 'mokuro_show_text_outlines': return 'Show recognised text outlines';
+			case 'mokuro_show_recognised_text': return 'Show recognised text (or long press a block)';
+			case 'mokuro_invert_page_colours': return 'Invert page colours';
+			case 'mokuro_volume_button_page_turning': return 'Volume button page turning (unreliable)';
 			case 'create_catalog': return 'Create Catalog';
 			case 'adapt_ttu_theme': return 'Adapt dictionary popup to theme';
 			case 'sentence_picker': return 'Sentence Picker';
