@@ -1,9 +1,9 @@
 /// Generated file. Do not edit.
 ///
 /// Locales: 1
-/// Strings: 409
+/// Strings: 413
 ///
-/// Built on 2026-10-28 at 21:23 UTC
+/// Built on 2026-10-29 at 07:42 UTC
 
 // coverage:ignore-file
 // ignore_for_file: type=lint
@@ -492,6 +492,10 @@ class _StringsEn implements BaseTranslations<AppLocale, _StringsEn> {
 	String mokuro_pages_not_found({required Object name}) => 'Cannot find the pages of this volume. Keep them next to the .mokuro file, in a folder, .cbz or .zip named ${name}.';
 	String get mokuro_archive_unreadable => 'Cannot open the archive holding the pages of this volume.';
 	String get mokuro_page_unreadable => 'Cannot show this page.';
+	String get mokuro_right_to_left => 'Read right to left';
+	String get mokuro_two_pages_in_landscape => 'Show two pages in landscape';
+	String get mokuro_first_page_is_cover => 'Show the first page on its own';
+	String get mokuro_show_text_outlines => 'Show recognised text outlines';
 	String get create_catalog => 'Create Catalog';
 	String get adapt_ttu_theme => 'Adapt dictionary popup to theme';
 	String get sentence_picker => 'Sentence Picker';
@@ -933,6 +937,10 @@ extension on _StringsEn {
 			case 'mokuro_pages_not_found': return ({required Object name}) => 'Cannot find the pages of this volume. Keep them next to the .mokuro file, in a folder, .cbz or .zip named ${name}.';
 			case 'mokuro_archive_unreadable': return 'Cannot open the archive holding the pages of this volume.';
 			case 'mokuro_page_unreadable': return 'Cannot show this page.';
+			case 'mokuro_right_to_left': return 'Read right to left';
+			case 'mokuro_two_pages_in_landscape': return 'Show two pages in landscape';
+			case 'mokuro_first_page_is_cover': return 'Show the first page on its own';
+			case 'mokuro_show_text_outlines': return 'Show recognised text outlines';
 			case 'create_catalog': return 'Create Catalog';
 			case 'adapt_ttu_theme': return 'Adapt dictionary popup to theme';
 			case 'sentence_picker': return 'Sentence Picker';

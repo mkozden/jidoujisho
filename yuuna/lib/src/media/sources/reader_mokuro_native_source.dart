@@ -69,8 +69,29 @@ class ReaderMokuroNativeSource extends ReaderMediaSource {
     required AppModel appModel,
   }) {
     return [
+      buildTweaksButton(context: context, ref: ref, appModel: appModel),
       buildPickFileButton(context: context, ref: ref, appModel: appModel),
     ];
+  }
+
+  /// Tweaks bar action.
+  Widget buildTweaksButton(
+      {required BuildContext context,
+      required WidgetRef ref,
+      required AppModel appModel}) {
+    return FloatingSearchBarAction(
+      child: JidoujishoIconButton(
+        size: Theme.of(context).textTheme.titleLarge?.fontSize,
+        tooltip: t.tweaks,
+        icon: Icons.tune,
+        onTap: () {
+          showDialog(
+            context: context,
+            builder: (context) => const MokuroNativeSettingsDialogPage(),
+          );
+        },
+      ),
+    );
   }
 
   /// Menu bar action.
@@ -262,6 +283,75 @@ class ReaderMokuroNativeSource extends ReaderMediaSource {
     await setPreference<bool>(
       key: 'right_to_left',
       value: !rightToLeft,
+    );
+  }
+
+  /// Whether two pages are shown side by side in landscape.
+  bool get twoPagesInLandscape {
+    return getPreference<bool>(
+        key: 'two_pages_in_landscape', defaultValue: true);
+  }
+
+  /// Toggles showing two pages side by side in landscape.
+  void toggleTwoPagesInLandscape() async {
+    await setPreference<bool>(
+      key: 'two_pages_in_landscape',
+      value: !twoPagesInLandscape,
+    );
+  }
+
+  /// Whether the first page is shown on its own when showing two pages.
+  bool get firstPageIsCover {
+    return getPreference<bool>(key: 'first_page_is_cover', defaultValue: true);
+  }
+
+  /// Toggles whether the first page is shown on its own.
+  void toggleFirstPageIsCover() async {
+    await setPreference<bool>(
+      key: 'first_page_is_cover',
+      value: !firstPageIsCover,
+    );
+  }
+
+  /// Whether the volume buttons turn the page.
+  bool get volumePageTurningEnabled {
+    return getPreference<bool>(
+        key: 'volume_page_turning_enabled', defaultValue: true);
+  }
+
+  /// Toggles the volume page turning option.
+  void toggleVolumePageTurningEnabled() async {
+    await setPreference<bool>(
+      key: 'volume_page_turning_enabled',
+      value: !volumePageTurningEnabled,
+    );
+  }
+
+  /// Whether volume down, rather than volume up, turns to the next page.
+  bool get volumePageTurningInverted {
+    return getPreference<bool>(
+        key: 'volume_page_turning_inverted', defaultValue: false);
+  }
+
+  /// Inverts the current volume button page turning direction preference.
+  void toggleVolumePageTurningInverted() async {
+    await setPreference<bool>(
+      key: 'volume_page_turning_inverted',
+      value: !volumePageTurningInverted,
+    );
+  }
+
+  /// Whether the outlines of recognised lines and their characters are drawn
+  /// over the pages, to check where taps will land.
+  bool get showTextOutlines {
+    return getPreference<bool>(key: 'show_text_outlines', defaultValue: false);
+  }
+
+  /// Toggles drawing text outlines.
+  void toggleShowTextOutlines() async {
+    await setPreference<bool>(
+      key: 'show_text_outlines',
+      value: !showTextOutlines,
     );
   }
 
