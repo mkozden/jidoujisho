@@ -42,3 +42,5 @@ export 'src/utils/misc/eink_mode.dart';
 export 'src/utils/misc/browser_bookmark.dart';
 export 'src/utils/misc/crash_diagnostics.dart';
 export 'src/utils/misc/local_web_assets_server.dart';
+export 'src/utils/misc/settings_backup.dart';
+export 'src/utils/misc/android_backup_reader.dart';

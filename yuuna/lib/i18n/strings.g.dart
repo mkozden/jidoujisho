@@ -1,9 +1,9 @@
 /// Generated file. Do not edit.
 ///
 /// Locales: 1
-/// Strings: 416
+/// Strings: 446
 ///
-/// Built on 2026-10-29 at 14:05 UTC
+/// Built on 2026-11-01 at 18:01 UTC
 
 // coverage:ignore-file
 // ignore_for_file: type=lint
@@ -202,6 +202,8 @@ class _StringsEn implements BaseTranslations<AppLocale, _StringsEn> {
 	String get dialog_manage => 'MANAGE';
 	String get dialog_stop => 'STOP';
 	String get dialog_done => 'DONE';
+	String get dialog_back_up => 'BACK UP';
+	String get dialog_restore => 'RESTORE';
 	String get reset => 'Reset';
 	String get dialog_launch_ankidroid => 'LAUNCH ANKIDROID';
 	String get media_item_delete_confirmation => 'This will clear this item from history. Are you sure you want to do this?';
@@ -219,6 +221,34 @@ class _StringsEn implements BaseTranslations<AppLocale, _StringsEn> {
 	String get webview_renderer_crashed => 'The reader\'s web engine crashed and was reloaded.';
 	String get webview_renderer_killed => 'The system closed the reader\'s web engine; it was reloaded.';
 	String get options_copy_lookup_log => 'Copy lookup log';
+	String get options_backup => 'Back up or restore settings';
+	String get backup_title => 'Back up and restore';
+	String get backup_description => 'Save settings, card creator profiles and history to a file, or restore them from one. Dictionaries and the books of the ッツ Ebook Reader are not included: import dictionaries again, and export books from the reader\'s own settings.';
+	String get backup_create => 'Back up to a file';
+	String get backup_restore_file => 'Restore from a file';
+	String get backup_restore_file_hint => 'A backup made by this app, or an Android backup (.ab) of the original jidoujisho';
+	String get backup_restore_folder => 'Restore from a data folder';
+	String get backup_restore_folder_hint => 'A copy of the original app\'s data folder, from a rooted device';
+	String get backup_choose_export => 'Choose what to back up';
+	String get backup_choose_import => 'Choose what to restore';
+	String backup_made_by({required Object app, required Object version, required Object date}) => 'Made by ${app} ${version} on ${date}.';
+	String backup_from_app_data({required Object package, required Object date}) => 'Found in the data of ${package}, last changed on ${date}.';
+	String get backup_import_warning => 'The chosen parts replace those in this app, which then restarts. Dictionary order and visibility is applied to each dictionary once it is imported.';
+	String get backup_include_api_key => 'Include the ChatGPT API key';
+	String get backup_section_preferences => 'App and reader settings';
+	String get backup_section_profiles => 'Card creator profiles';
+	String get backup_section_dictionary_settings => 'Dictionary order and visibility';
+	String get backup_section_media_history => 'Reading and watching history';
+	String get backup_section_search_history => 'Search history';
+	String get backup_section_catalogs => 'Mokuro catalogs and browser bookmarks';
+	String get backup_section_ttu_settings => 'ッツ Ebook Reader settings';
+	String get backup_working => 'Working...';
+	String backup_saved({required Object name}) => 'Saved ${name} to Downloads';
+	String backup_failed({required Object error}) => 'Failed: ${error}';
+	String get backup_no_data => 'No jidoujisho data was found.';
+	String get backup_not_a_backup => 'This is not a jidoujisho backup.';
+	String get backup_too_new => 'This backup was made by a newer version of the app. Update the app to restore it.';
+	String get backup_encrypted => 'This Android backup is encrypted. Make it again and leave the password empty.';
 	String get options_incognito_on => 'Turn on incognito mode';
 	String get options_incognito_off => 'Turn off incognito mode';
 	String get options_dictionaries => 'Manage dictionaries';
@@ -650,6 +680,8 @@ extension on _StringsEn {
 			case 'dialog_manage': return 'MANAGE';
 			case 'dialog_stop': return 'STOP';
 			case 'dialog_done': return 'DONE';
+			case 'dialog_back_up': return 'BACK UP';
+			case 'dialog_restore': return 'RESTORE';
 			case 'reset': return 'Reset';
 			case 'dialog_launch_ankidroid': return 'LAUNCH ANKIDROID';
 			case 'media_item_delete_confirmation': return 'This will clear this item from history. Are you sure you want to do this?';
@@ -667,6 +699,34 @@ extension on _StringsEn {
 			case 'webview_renderer_crashed': return 'The reader\'s web engine crashed and was reloaded.';
 			case 'webview_renderer_killed': return 'The system closed the reader\'s web engine; it was reloaded.';
 			case 'options_copy_lookup_log': return 'Copy lookup log';
+			case 'options_backup': return 'Back up or restore settings';
+			case 'backup_title': return 'Back up and restore';
+			case 'backup_description': return 'Save settings, card creator profiles and history to a file, or restore them from one. Dictionaries and the books of the ッツ Ebook Reader are not included: import dictionaries again, and export books from the reader\'s own settings.';
+			case 'backup_create': return 'Back up to a file';
+			case 'backup_restore_file': return 'Restore from a file';
+			case 'backup_restore_file_hint': return 'A backup made by this app, or an Android backup (.ab) of the original jidoujisho';
+			case 'backup_restore_folder': return 'Restore from a data folder';
+			case 'backup_restore_folder_hint': return 'A copy of the original app\'s data folder, from a rooted device';
+			case 'backup_choose_export': return 'Choose what to back up';
+			case 'backup_choose_import': return 'Choose what to restore';
+			case 'backup_made_by': return ({required Object app, required Object version, required Object date}) => 'Made by ${app} ${version} on ${date}.';
+			case 'backup_from_app_data': return ({required Object package, required Object date}) => 'Found in the data of ${package}, last changed on ${date}.';
+			case 'backup_import_warning': return 'The chosen parts replace those in this app, which then restarts. Dictionary order and visibility is applied to each dictionary once it is imported.';
+			case 'backup_include_api_key': return 'Include the ChatGPT API key';
+			case 'backup_section_preferences': return 'App and reader settings';
+			case 'backup_section_profiles': return 'Card creator profiles';
+			case 'backup_section_dictionary_settings': return 'Dictionary order and visibility';
+			case 'backup_section_media_history': return 'Reading and watching history';
+			case 'backup_section_search_history': return 'Search history';
+			case 'backup_section_catalogs': return 'Mokuro catalogs and browser bookmarks';
+			case 'backup_section_ttu_settings': return 'ッツ Ebook Reader settings';
+			case 'backup_working': return 'Working...';
+			case 'backup_saved': return ({required Object name}) => 'Saved ${name} to Downloads';
+			case 'backup_failed': return ({required Object error}) => 'Failed: ${error}';
+			case 'backup_no_data': return 'No jidoujisho data was found.';
+			case 'backup_not_a_backup': return 'This is not a jidoujisho backup.';
+			case 'backup_too_new': return 'This backup was made by a newer version of the app. Update the app to restore it.';
+			case 'backup_encrypted': return 'This Android backup is encrypted. Make it again and leave the password empty.';
 			case 'options_incognito_on': return 'Turn on incognito mode';
 			case 'options_incognito_off': return 'Turn off incognito mode';
 			case 'options_dictionaries': return 'Manage dictionaries';

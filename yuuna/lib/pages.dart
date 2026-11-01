@@ -76,3 +76,4 @@ export 'src/pages/base_history_page.dart';
 export 'src/pages/base_tab_page.dart';
 export 'src/pages/base_source_page.dart';
 export 'src/pages/base_media_search_bar.dart';
+export 'src/pages/implementations/settings_backup_dialog_page.dart';

@@ -326,6 +326,14 @@ class _HomePageState extends BasePageState<HomePage>
     Fluttertoast.showToast(msg: t.copied_to_clipboard);
   }
 
+  /// Opens the dialog for backing up and restoring settings.
+  void openSettingsBackup() async {
+    await showDialog(
+      context: context,
+      builder: (context) => const SettingsBackupDialogPage(),
+    );
+  }
+
   List<PopupMenuItem<VoidCallback>> getMenuItems() {
     return [
       buildPopupItem(
@@ -355,6 +363,11 @@ class _HomePageState extends BasePageState<HomePage>
       //       appModel.usePictureInPicture(ref: ref);
       //     },
       //   ),
+      buildPopupItem(
+        label: t.options_backup,
+        icon: Icons.settings_backup_restore,
+        action: openSettingsBackup,
+      ),
       buildPopupItem(
         label: t.options_dictionaries,
         icon: Icons.auto_stories_rounded,

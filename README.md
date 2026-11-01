@@ -45,6 +45,13 @@ to this fork too, except for the changes below.
   recorded (crash, freeze, low memory...) with a Copy button (Android 11 and later). The
   home screen menu can copy a log of recent reader lookups, for tracking down pop-ups
   that close on their own.
+- **Settings backup.** "Back up or restore settings" in the home screen menu saves
+  settings, card creator profiles (fields, enhancements, quick actions), the card types
+  checked for duplicates, dictionary order and visibility, history, catalogs and the
+  ッツ Ebook Reader's own settings to a JSON file, and restores any of them. It also
+  restores from the original jidoujisho: from an `adb backup` of it (possible on
+  Android 11 and older) or from a copy of its data folder on a rooted device.
+  Dictionaries and ebooks are not included.
 - **Tapping the source name bar** opens the source picker.
 - **Installs as a separate app**, "jidoujisho+", so it doesn't replace the original.
 

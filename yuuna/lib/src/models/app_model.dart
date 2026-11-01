@@ -1,5 +1,5 @@
 import 'dart:async';
-
+import 'dart:convert';
 import 'dart:io';
 import 'dart:isolate';
 import 'dart:ui';
@@ -146,6 +146,10 @@ class AppModel with ChangeNotifier {
 
   /// Used for accessing persistent database data. See [initialise].
   late final Isar _database;
+
+  /// The app's database. Used by [SettingsBackup] to read and replace whole
+  /// collections.
+  Isar get database => _database;
 
   /// Used to get the versioning metadata of the app. See [initialise].
   PackageInfo get packageInfo => _packageInfo;
@@ -1557,6 +1561,9 @@ class AppModel with ChangeNotifier {
       );
 
       await compute(depositDictionaryDataHelper, prepareDictionaryParams);
+
+      /// Give the dictionary its order and visibility from a restored backup.
+      SettingsBackup.applyPendingDictionarySettings(this);
 
       progressNotifier.value = t.import_complete;
       onImportSuccess();
@@ -3679,6 +3686,36 @@ class AppModel with ChangeNotifier {
   /// Set the list of model names that will be checked for duplicates.
   void setDuplicateCheckModels(List<String> value) async {
     await _preferences.put('duplicate_check_models', value);
+  }
+
+  /// Dictionary settings from a restored backup that wait for their
+  /// dictionaries to be imported. See
+  /// [SettingsBackup.applyPendingDictionarySettings].
+  List<Map<String, dynamic>> get pendingDictionarySettings {
+    String? json =
+        _preferences.get(SettingsBackup.pendingDictionarySettingsKey);
+    if (json == null) {
+      return [];
+    }
+    try {
+      return List<Map<String, dynamic>>.from(
+          List<Map>.from(jsonDecode(json) as List)
+              .map(Map<String, dynamic>.from));
+    } catch (e) {
+      return [];
+    }
+  }
+
+  /// Set the dictionary settings waiting for their dictionaries to be
+  /// imported, or clear them if [settings] is empty.
+  Future<void> setPendingDictionarySettings(
+      List<Map<String, dynamic>> settings) async {
+    if (settings.isEmpty) {
+      await _preferences.delete(SettingsBackup.pendingDictionarySettingsKey);
+    } else {
+      await _preferences.put(
+          SettingsBackup.pendingDictionarySettingsKey, jsonEncode(settings));
+    }
   }
 
   /// Get whether or not bookmarks have been populated.
