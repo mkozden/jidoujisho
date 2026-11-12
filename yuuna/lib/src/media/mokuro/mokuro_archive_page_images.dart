@@ -4,7 +4,6 @@ import 'dart:ui' as ui;
 import 'package:async_zip/async_zip.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/painting.dart';
-import 'package:path/path.dart' as path;
 import 'package:yuuna/media.dart';
 
 /// Page images read straight from a .cbz or .zip archive, without extracting
@@ -62,20 +61,6 @@ class MokuroArchivePageImages extends MokuroPageImages {
 
       for (String name in _entryNames) {
         if (name.endsWith('/$imgPath')) {
-          return name;
-        }
-      }
-
-      /// Pages are often converted (for example to WebP) after mokuro has
-      /// listed them, which leaves the name but changes the extension.
-      String stem = path.withoutExtension(imgPath);
-      for (String name in _entryNames) {
-        if (!MokuroPageImages.isImagePath(name)) {
-          continue;
-        }
-
-        String nameStem = path.withoutExtension(name);
-        if (nameStem == stem || nameStem.endsWith('/$stem')) {
           return name;
         }
       }

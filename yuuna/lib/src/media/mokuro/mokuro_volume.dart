@@ -236,22 +236,6 @@ abstract class MokuroPageImages {
     throw MokuroVolumeException(t.mokuro_pages_not_found(name: stem));
   }
 
-  /// Extensions of the page image formats that can be shown.
-  static const Set<String> imageExtensions = {
-    '.jpg',
-    '.jpeg',
-    '.png',
-    '.webp',
-    '.gif',
-    '.bmp',
-    '.avif',
-  };
-
-  /// Whether the file at [filePath] has the extension of a page image.
-  static bool isImagePath(String filePath) {
-    return imageExtensions.contains(path.extension(filePath).toLowerCase());
-  }
-
   /// The image of [page], for display.
   ImageProvider imageForPage(MokuroPage page);
 
@@ -273,31 +257,9 @@ class MokuroDirectoryPageImages extends MokuroPageImages {
   /// Folder that [MokuroPage.imgPath] is relative to.
   final Directory directory;
 
-  final Map<String, File> _fileForPath = {};
-
-  /// The image file at [imgPath]. If there is none, a file with the same
-  /// name but another image extension is used instead, as pages are often
-  /// converted (for example to WebP) after mokuro has listed them.
+  /// The image file at [imgPath].
   File fileForPath(String imgPath) {
-    return _fileForPath.putIfAbsent(imgPath, () {
-      File file = File(path.join(directory.path, imgPath));
-      if (file.existsSync()) {
-        return file;
-      }
-
-      Directory parent = file.parent;
-      if (!parent.existsSync()) {
-        return file;
-      }
-
-      String stem = path.basenameWithoutExtension(file.path);
-      File? converted = parent.listSync().whereType<File>().firstWhereOrNull(
-          (sibling) =>
-              path.basenameWithoutExtension(sibling.path) == stem &&
-              MokuroPageImages.isImagePath(sibling.path));
-
-      return converted ?? file;
-    });
+    return File(path.join(directory.path, imgPath));
   }
 
   /// The image file of [page].

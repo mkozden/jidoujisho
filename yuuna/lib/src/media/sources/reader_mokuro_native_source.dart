@@ -235,11 +235,8 @@ class ReaderMokuroNativeSource extends ReaderMediaSource {
       String name = loaded.volume.volumeUuid.isNotEmpty
           ? loaded.volume.volumeUuid
           : DateTime.now().millisecondsSinceEpoch.toString();
-      String imagePath = images is MokuroArchivePageImages
-          ? images.entryNameForPath(page.imgPath) ?? page.imgPath
-          : page.imgPath;
-      File file =
-          File(path.join(directory.path, '$name${path.extension(imagePath)}'));
+      File file = File(
+          path.join(directory.path, '$name${path.extension(page.imgPath)}'));
       await file.writeAsBytes(await images.readPage(page));
 
       return file.path;
