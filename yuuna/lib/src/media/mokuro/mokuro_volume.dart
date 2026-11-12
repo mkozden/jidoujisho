@@ -257,9 +257,26 @@ class MokuroDirectoryPageImages extends MokuroPageImages {
   /// Folder that [MokuroPage.imgPath] is relative to.
   final Directory directory;
 
-  /// The image file at [imgPath].
+  final Map<String, File> _fileForPath = {};
+
+  /// The image file at [imgPath]. mokuro writes paths relative to the
+  /// volume folder, while other tools write them relative to the folder
+  /// holding the .mokuro file, so starting with the volume folder's name.
+  /// Both are looked for.
   File fileForPath(String imgPath) {
-    return File(path.join(directory.path, imgPath));
+    return _fileForPath.putIfAbsent(imgPath, () {
+      File file = File(path.join(directory.path, imgPath));
+      if (file.existsSync()) {
+        return file;
+      }
+
+      File fromParent = File(path.join(directory.parent.path, imgPath));
+      if (fromParent.existsSync()) {
+        return fromParent;
+      }
+
+      return file;
+    });
   }
 
   /// The image file of [page].

@@ -4,6 +4,7 @@ import 'dart:ui' as ui;
 import 'package:async_zip/async_zip.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/painting.dart';
+import 'package:path/path.dart' as path;
 import 'package:yuuna/media.dart';
 
 /// Page images read straight from a .cbz or .zip archive, without extracting
@@ -52,21 +53,39 @@ class MokuroArchivePageImages extends MokuroPageImages {
 
   /// The archive entry holding the image at [imgPath]. Archives often keep
   /// the pages inside a single top-level folder, which mokuro leaves out of
-  /// the path when it unpacks them.
+  /// the path when it unpacks them. Other tools start the path with the
+  /// volume's name, which the archive may not have as a folder, so the path
+  /// is also looked for without it.
   String? entryNameForPath(String imgPath) {
     return _entryNameForPath.putIfAbsent(imgPath, () {
-      if (_entryNames.contains(imgPath)) {
-        return imgPath;
+      String? name = _entryNameMatching(imgPath);
+      if (name != null) {
+        return name;
       }
 
-      for (String name in _entryNames) {
-        if (name.endsWith('/$imgPath')) {
-          return name;
-        }
+      String volumePrefix = '${path.basenameWithoutExtension(archive.path)}/';
+      if (imgPath.startsWith(volumePrefix)) {
+        return _entryNameMatching(imgPath.substring(volumePrefix.length));
       }
 
       return null;
     });
+  }
+
+  /// The entry at [entryPath], either at the top of the archive or inside a
+  /// folder.
+  String? _entryNameMatching(String entryPath) {
+    if (_entryNames.contains(entryPath)) {
+      return entryPath;
+    }
+
+    for (String name in _entryNames) {
+      if (name.endsWith('/$entryPath')) {
+        return name;
+      }
+    }
+
+    return null;
   }
 
   /// Read the entry at [entryName] from the archive.
