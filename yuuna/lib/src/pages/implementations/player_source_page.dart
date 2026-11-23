@@ -244,6 +244,9 @@ class _PlayerSourcePageState extends BaseSourcePageState<PlayerSourcePage>
   /// Whether FFmpeg is extracting the subtitles of the video.
   bool _extractingEmbeddedSubtitles = false;
 
+  /// Whether an embedded track has been picked as the default subtitle.
+  bool _embeddedDefaultChosen = false;
+
   /// When the position was last saved to history.
   DateTime _lastHistoryUpdate = DateTime.fromMillisecondsSinceEpoch(0);
 
@@ -777,14 +780,26 @@ class _PlayerSourcePageState extends BaseSourcePageState<PlayerSourcePage>
           }
 
           _subtitleItems.add(item);
-          if (_subtitleItem.type == SubtitleItemType.noneSubtitle) {
-            await item.controller.initial();
-            _subtitleItem = item;
-            _currentSubtitle.value = null;
-            widget.source.clearCurrentSentence();
-            refreshSubtitleWidget();
-          }
           _subtitleItemNotifier.value = !_subtitleItemNotifier.value;
+
+          // Tracks arrive in quick succession, target language first. Only
+          // the first may become the default, or whichever track finished
+          // loading last would win.
+          if (_subtitleItem.type != SubtitleItemType.noneSubtitle ||
+              _embeddedDefaultChosen) {
+            return;
+          }
+          _embeddedDefaultChosen = true;
+
+          await item.controller.initial();
+          if (_disposed ||
+              _subtitleItem.type != SubtitleItemType.noneSubtitle) {
+            return;
+          }
+          _subtitleItem = item;
+          _currentSubtitle.value = null;
+          widget.source.clearCurrentSentence();
+          refreshSubtitleWidget();
         },
       );
     } finally {
