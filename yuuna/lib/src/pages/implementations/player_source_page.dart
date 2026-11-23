@@ -98,12 +98,18 @@ class _PlayerSourcePageState extends BaseSourcePageState<PlayerSourcePage>
   @override
   Future<void> onSourcePagePop() async {
     if (_playerInitialised) {
+      updateHistory(force: true);
       await _playerController.stop();
     }
   }
 
   @override
   void dispose() async {
+    _disposed = true;
+    if (_extractingEmbeddedSubtitles) {
+      SubtitleUtils.cancelExtraction();
+    }
+
     _playPauseSubscription?.cancel();
     _seekSubscription?.cancel();
     _rewindSubscription?.cancel();
@@ -179,6 +185,9 @@ class _PlayerSourcePageState extends BaseSourcePageState<PlayerSourcePage>
       case AppLifecycleState.detached:
       case AppLifecycleState.hidden:
         _lifecycleActive = false;
+        if (_playerInitialised) {
+          updateHistory(force: true);
+        }
         if (!appModel.playerBackgroundPlay) {
           _session.setActive(false);
         }
@@ -226,6 +235,18 @@ class _PlayerSourcePageState extends BaseSourcePageState<PlayerSourcePage>
 
   Duration? _bufferingDuration;
 
+  /// Whether [initialisePlayer] has started.
+  bool _playerInitialising = false;
+
+  /// Whether this page has been disposed, which stops subtitle extraction.
+  bool _disposed = false;
+
+  /// Whether FFmpeg is extracting the subtitles of the video.
+  bool _extractingEmbeddedSubtitles = false;
+
+  /// When the position was last saved to history.
+  DateTime _lastHistoryUpdate = DateTime.fromMillisecondsSinceEpoch(0);
+
   PlayerMediaSource get source => widget.source as PlayerMediaSource;
 
   /// Executed on dictionary dismiss.
@@ -241,11 +262,13 @@ class _PlayerSourcePageState extends BaseSourcePageState<PlayerSourcePage>
 
   /// This prepares the player for use and sets a lot of initial variables.
   void initialisePlayer() async {
-    if (_playerInitialised) {
+    // This is called from build, which can run again while the awaits below
+    // are pending. Without this guard every rebuild would start another
+    // player for the same file.
+    if (_playerInitialised || _playerInitialising) {
       return;
     }
-
-    await Future.delayed(const Duration(seconds: 1), () {});
+    _playerInitialising = true;
 
     appModel.currentMediaPauseStream.listen((event) {
       dialogSmartPause();
@@ -556,9 +579,13 @@ class _PlayerSourcePageState extends BaseSourcePageState<PlayerSourcePage>
         );
       }
 
+      bool wasPlaying = _playingNotifier.value;
       _positionNotifier.value = _playerController.value.position;
       _durationNotifier.value = _playerController.value.duration;
       _playingNotifier.value = _playerController.value.isPlaying;
+      if (wasPlaying && !_playingNotifier.value) {
+        updateHistory(force: true);
+      }
       _endedNotifier.value = _playerController.value.isEnded;
 
       if (_playerController.value.aspectRatio != _lastAspectRatio) {
@@ -737,55 +764,57 @@ class _PlayerSourcePageState extends BaseSourcePageState<PlayerSourcePage>
 
   /// This prepares the subtitles included with the video for use.
   void initialiseEmbeddedSubtitles(VlcPlayerController controller) async {
-    if (controller.dataSourceType != DataSourceType.file) {
+    if (controller.dataSourceType != DataSourceType.file || _disposed) {
       return;
     }
     appModel.isProcessingEmbeddedSubtitles = true;
+    _extractingEmbeddedSubtitles = true;
 
-    await SubtitleUtils.targetSubtitleFromVideo(
-      file: File(controller.dataSource),
-      language: appModel.targetLanguage,
-      onItemComplete: (item) async {
-        _subtitleItems.add(item);
+    try {
+      await SubtitleUtils.subtitlesFromVideo(
+        file: File(controller.dataSource),
+        language: appModel.targetLanguage,
+        isCancelled: () => _disposed,
+        onItemComplete: (item) async {
+          if (_disposed) {
+            return;
+          }
 
-        if (_subtitleItem.type == SubtitleItemType.noneSubtitle) {
-          await item.controller.initial();
-
-          _subtitleItem = item;
-          _currentSubtitle.value = null;
-          widget.source.clearCurrentSentence();
-          refreshSubtitleWidget();
-        }
-        _subtitleItemNotifier.value = !_subtitleItemNotifier.value;
-      },
-    );
-
-    await Future.delayed(const Duration(seconds: 2), () {});
-
-    int embeddedTrackCount = await _playerController.getSpuTracksCount() ?? 0;
-
-    await SubtitleUtils.subtitlesFromVideo(
-      file: File(controller.dataSource),
-      embeddedTrackCount: embeddedTrackCount,
-      onItemComplete: (item) async {
-        _subtitleItems.add(item);
-        if (_subtitleItem.type == SubtitleItemType.noneSubtitle) {
-          await item.controller.initial();
-          _subtitleItem = item;
-          _currentSubtitle.value = null;
-          widget.source.clearCurrentSentence();
-          refreshSubtitleWidget();
-        }
-        _subtitleItemNotifier.value = !_subtitleItemNotifier.value;
-      },
-    );
-
-    appModel.isProcessingEmbeddedSubtitles = false;
+          _subtitleItems.add(item);
+          if (_subtitleItem.type == SubtitleItemType.noneSubtitle) {
+            await item.controller.initial();
+            _subtitleItem = item;
+            _currentSubtitle.value = null;
+            widget.source.clearCurrentSentence();
+            refreshSubtitleWidget();
+          }
+          _subtitleItemNotifier.value = !_subtitleItemNotifier.value;
+        },
+      );
+    } finally {
+      _extractingEmbeddedSubtitles = false;
+      appModel.isProcessingEmbeddedSubtitles = false;
+    }
   }
 
   /// This updates the media item to its new position and duration and also
   /// persists the change in media history.
-  void updateHistory() async {
+  /// Unless [force] is set, this runs at most every few seconds, as the
+  /// player reports its position many times a second and every update is a
+  /// database write on the UI thread.
+  void updateHistory({bool force = false}) async {
+    if (_durationNotifier.value == Duration.zero ||
+        _positionNotifier.value == Duration.zero) {
+      return;
+    }
+
+    DateTime now = DateTime.now();
+    if (!force &&
+        now.difference(_lastHistoryUpdate) < const Duration(seconds: 5)) {
+      return;
+    }
+    _lastHistoryUpdate = now;
+
     if (source is PlayerNetworkStreamSource) {
       if (_positionNotifier.value.inMilliseconds != 0) {
         ReceiveIntent.setResult(
@@ -1929,7 +1958,10 @@ class _PlayerSourcePageState extends BaseSourcePageState<PlayerSourcePage>
           return '${t.player_option_subtitle} - ${t.player_option_subtitle_external}';
         }
       case SubtitleItemType.embeddedSubtitle:
-        if (item.index != null) {
+        if (item.metadata != null) {
+          return '${t.player_option_subtitle} - ${item.metadata}';
+        } else if (item.index != null &&
+            item.index! < embeddedTracks.length) {
           return '${t.player_option_subtitle} - ${embeddedTracks.values.toList()[item.index!]}';
         } else {
           return '${t.player_option_subtitle} - ${t.default_option}';
@@ -2526,8 +2558,10 @@ class _PlayerSourcePageState extends BaseSourcePageState<PlayerSourcePage>
       _menuHideTimer?.cancel();
       _isMenuHidden.value = false;
 
+      // The audio session stays active while paused. Giving it up lets
+      // Bluetooth headphones close their audio link, which clips the start
+      // of the audio when playback resumes.
       await _playerController.pause();
-      _session.setActive(false);
     } else {
       if (!_playerController.value.isInitialized) {
         _playerController.initialize().then((_) async {
@@ -2612,8 +2646,8 @@ class _PlayerSourcePageState extends BaseSourcePageState<PlayerSourcePage>
     if (_playerController.value.isPlaying) {
       _menuHideTimer?.cancel();
       _dialogSmartPaused = true;
+      // See playPause for why the audio session stays active.
       await _playerController.pause();
-      _session.setActive(false);
     }
   }
 
