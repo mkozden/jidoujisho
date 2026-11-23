@@ -352,8 +352,8 @@ class PlayerYoutubeSource extends PlayerMediaSource {
     }
 
     List<String> videoParams = [
-      VlcVideoOptions.dropLateFrames(false),
-      VlcVideoOptions.skipFrames(false),
+      VlcVideoOptions.dropLateFrames(true),
+      VlcVideoOptions.skipFrames(true),
     ];
     List<String> advancedParams = [
       '--start-time=$startTime',
