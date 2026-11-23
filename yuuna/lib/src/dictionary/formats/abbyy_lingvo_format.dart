@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:isolate';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
@@ -45,16 +46,23 @@ Future<void> prepareDirectoryAbbyyLingvoFormat(
   String dictionaryFilePath =
       path.join(params.resourceDirectory.path, 'dictionary.dsl');
   File originalFile = params.file;
-  File newFile = File(dictionaryFilePath);
+  String charset = params.charset;
 
-  if (params.charset.startsWith('UTF-16')) {
-    final utf16CodeUnits = originalFile.readAsBytesSync().buffer.asUint16List();
-    var converted = String.fromCharCodes(utf16CodeUnits);
-    newFile.createSync();
-    newFile.writeAsStringSync(converted);
-  } else {
-    originalFile.copySync(newFile.path);
-  }
+  /// Copying and converting is synchronous, so it runs in its own isolate to
+  /// keep the UI responsive. Only sendable values are captured by the closure.
+  await Isolate.run(() {
+    File newFile = File(dictionaryFilePath);
+
+    if (charset.startsWith('UTF-16')) {
+      final utf16CodeUnits =
+          originalFile.readAsBytesSync().buffer.asUint16List();
+      var converted = String.fromCharCodes(utf16CodeUnits);
+      newFile.createSync();
+      newFile.writeAsStringSync(converted);
+    } else {
+      originalFile.copySync(newFile.path);
+    }
+  });
 }
 
 /// Top-level function for use in compute. See [DictionaryFormat] for details.
@@ -104,6 +112,19 @@ Future<void> prepareEntriesAbbyyLingvoFormat({
   String term = '';
 
   final buffer = StringBuffer();
+  final ImportProgressReporter progress =
+      ImportProgressReporter(params.sendPort);
+
+  DictionaryHeadingBatch headings = DictionaryHeadingBatch(isar);
+  List<DictionaryEntry> entries = [];
+
+  /// Headings must be stored before the entries that link to them.
+  void flush() {
+    headings.flush();
+    isar.dictionaryEntrys.putAllSync(entries);
+    headings = DictionaryHeadingBatch(isar);
+    entries = [];
+  }
 
   for (String line in lines) {
     if (line.startsWith('#')) {
@@ -119,9 +140,11 @@ Future<void> prepareEntriesAbbyyLingvoFormat({
 
       if (term.isNotEmpty && definition.isNotEmpty) {
         int headingId = DictionaryHeading.hash(term: term, reading: '');
-        DictionaryHeading heading =
-            isar.dictionaryHeadings.getSync(headingId) ??
-                DictionaryHeading(term: term);
+        final String headingTerm = term;
+        DictionaryHeading heading = headings.obtain(
+          headingId,
+          () => DictionaryHeading(term: headingTerm),
+        );
 
         DictionaryEntry entry = DictionaryEntry(
           definitions: [definition],
@@ -130,20 +153,21 @@ Future<void> prepareEntriesAbbyyLingvoFormat({
 
         entry.heading.value = heading;
         entry.dictionary.value = params.dictionary;
-        isar.dictionaryEntrys.putSync(entry);
-
-        heading.entries.add(entry);
-
-        isar.dictionaryHeadings.putSync(heading);
-
-        params.send(t.import_found_entry(count: count));
+        entries.add(entry);
 
         count++;
+        if (entries.length >= dictionaryImportBatchSize) {
+          flush();
+          progress.report(() => t.import_found_entry(count: count));
+        }
       }
 
       term = line.trim();
     }
   }
+
+  flush();
+  progress.report(() => t.import_found_entry(count: count), force: true);
 }
 
 /// Top-level function for use in compute. See [DictionaryFormat] for details.

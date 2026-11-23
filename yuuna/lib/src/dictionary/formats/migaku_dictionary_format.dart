@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math' show min;
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
@@ -61,48 +62,62 @@ void prepareEntriesMigakuFormat({
 }) async {
   final List<FileSystemEntity> entities = params.resourceDirectory.listSync();
   final Iterable<File> files = entities.whereType<File>();
+  final ImportProgressReporter progress =
+      ImportProgressReporter(params.sendPort);
 
   int count = 0;
 
   for (File file in files) {
     List<dynamic> items = List.from(jsonDecode(file.readAsStringSync()));
 
-    for (dynamic item in items) {
-      Map<String, dynamic> map = Map<String, dynamic>.from(item);
-
-      String term = (map['term'] as String).trim();
-      String definition = map['definition'] as String;
-      String reading = map['pronunciation'] ?? '';
-
-      definition = definition
-          .replaceAll('<br>', '\n')
-          .replaceAll(RegExp('<[^<]+?>'), '');
-
-      int headingId = DictionaryHeading.hash(term: term, reading: reading);
-      DictionaryHeading heading = isar.dictionaryHeadings.getSync(headingId) ??
-          DictionaryHeading(term: term, reading: reading);
-
-      DictionaryEntry entry = DictionaryEntry(
-        definitions: [definition],
-        popularity: 0,
+    for (int start = 0;
+        start < items.length;
+        start += dictionaryImportBatchSize) {
+      final List<dynamic> batch = items.sublist(
+        start,
+        min(start + dictionaryImportBatchSize, items.length),
       );
 
-      entry.heading.value = heading;
-      entry.dictionary.value = params.dictionary;
-      isar.dictionaryEntrys.putSync(entry);
+      final DictionaryHeadingBatch headings = DictionaryHeadingBatch(isar);
+      final List<DictionaryEntry> entries = [];
 
-      heading.entries.add(entry);
+      for (dynamic item in batch) {
+        Map<String, dynamic> map = Map<String, dynamic>.from(item);
 
-      isar.dictionaryHeadings.putSync(heading);
+        String term = (map['term'] as String).trim();
+        String definition = map['definition'] as String;
+        String reading = map['pronunciation'] ?? '';
 
-      count++;
-      params.send(t.import_found_entry(
-        count: count,
-      ));
+        definition = definition
+            .replaceAll('<br>', '\n')
+            .replaceAll(RegExp('<[^<]+?>'), '');
+
+        int headingId = DictionaryHeading.hash(term: term, reading: reading);
+        DictionaryHeading heading = headings.obtain(
+          headingId,
+          () => DictionaryHeading(term: term, reading: reading),
+        );
+
+        DictionaryEntry entry = DictionaryEntry(
+          definitions: [definition],
+          popularity: 0,
+        );
+
+        entry.heading.value = heading;
+        entry.dictionary.value = params.dictionary;
+        entries.add(entry);
+      }
+
+      /// Headings must be stored before the entries that link to them.
+      headings.flush();
+      isar.dictionaryEntrys.putAllSync(entries);
+
+      count += batch.length;
+      progress.report(() => t.import_found_entry(count: count));
     }
   }
 
-  params.send(t.import_found_entry(count: count));
+  progress.report(() => t.import_found_entry(count: count), force: true);
 }
 
 /// Top-level function for use in compute. See [DictionaryFormat] for details.
