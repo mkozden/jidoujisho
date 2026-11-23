@@ -141,8 +141,8 @@ class PlayerNetworkStreamSource extends PlayerMediaSource {
     int startTime = item.position;
 
     List<String> videoParams = [
-      VlcVideoOptions.dropLateFrames(true),
-      VlcVideoOptions.skipFrames(true),
+      VlcVideoOptions.dropLateFrames(false),
+      VlcVideoOptions.skipFrames(false),
     ];
     List<String> advancedParams = [
       '--start-time=$startTime',
