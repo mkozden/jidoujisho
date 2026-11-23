@@ -281,8 +281,14 @@ class _PlayerTranscriptPageState
             ...widget.subtitles.sublist(0, index),
           ];
 
-    Subtitle? subtitle = subtitlesToSearch.firstWhereOrNull((subtitle) =>
-        subtitle.data.toLowerCase().contains(query.toLowerCase()));
+    Subtitle? subtitle = subtitlesToSearch.firstWhereOrNull((subtitle) {
+      String lowerQuery = query.toLowerCase();
+      return subtitle.data.toLowerCase().contains(lowerQuery) ||
+          RubySubtitle.parse(subtitle.data)
+              .text
+              .toLowerCase()
+              .contains(lowerQuery);
+    });
     if (subtitle != null) {
       widget.currentSubtitle.value = subtitle;
       Duration offsetStart = subtitle.start -
@@ -735,12 +741,10 @@ class _PlayerTranscriptPageState
             JidoujishoSelectableTextController();
 
         Subtitle subtitle = widget.subtitles[index];
-        String subtitleText = subtitle.data;
-
-        if (widget.subtitleOptions.regexFilter.isNotEmpty) {
-          subtitleText = subtitleText.replaceAll(
-              RegExp(widget.subtitleOptions.regexFilter), '');
-        }
+        String subtitleText = RubySubtitle.parse(
+          subtitle.data,
+          regexFilter: widget.subtitleOptions.regexFilter,
+        ).text;
 
         Color durationColor = Theme.of(context).unselectedWidgetColor;
 

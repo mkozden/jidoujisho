@@ -35,6 +35,7 @@ class _SubtitleOptionsDialogPage
   late final TextEditingController _blurController;
 
   late ValueNotifier<bool> _aboveBottomBarNotifier;
+  late ValueNotifier<bool> _showFuriganaNotifier;
 
   @override
   void initState() {
@@ -58,6 +59,7 @@ class _SubtitleOptionsDialogPage
         text: _options.subtitleBackgroundBlurRadius.toString());
     _aboveBottomBarNotifier =
         ValueNotifier<bool>(_options.alwaysAboveBottomBar);
+    _showFuriganaNotifier = ValueNotifier<bool>(_options.showFurigana);
   }
 
   @override
@@ -335,6 +337,8 @@ class _SubtitleOptionsDialogPage
                 const SizedBox(height: 10),
                 buildAlwaysAboveBottomBar(),
                 const SizedBox(height: 10),
+                buildShowFurigana(),
+                const SizedBox(height: 10),
               ],
             ),
           ),
@@ -354,6 +358,25 @@ class _SubtitleOptionsDialogPage
               value: value,
               onChanged: (value) {
                 _aboveBottomBarNotifier.value = value;
+              },
+            );
+          },
+        )
+      ],
+    );
+  }
+
+  Widget buildShowFurigana() {
+    return Row(
+      children: [
+        Expanded(child: Text(t.player_option_subtitle_show_furigana)),
+        ValueListenableBuilder<bool>(
+          valueListenable: _showFuriganaNotifier,
+          builder: (_, value, __) {
+            return Switch(
+              value: value,
+              onChanged: (value) {
+                _showFuriganaNotifier.value = value;
               },
             );
           },
@@ -414,6 +437,7 @@ class _SubtitleOptionsDialogPage
       subtitleOptions.subtitleOutlineWidth = newWidth;
       subtitleOptions.subtitleBackgroundBlurRadius = newBlur;
       subtitleOptions.alwaysAboveBottomBar = newAlwaysAboveBottomBar;
+      subtitleOptions.showFurigana = _showFuriganaNotifier.value;
 
       widget.notifier.value = subtitleOptions;
 

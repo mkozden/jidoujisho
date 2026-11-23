@@ -261,6 +261,7 @@
     "player_option_subtitle_background_blur_radius": "Subtitle background blur radius",
     "player_option_outline_width": "Subtitle outline width",
     "player_option_subtitle_always_above_bottom_bar": "Always show subtitle above bottom bar area",
+    "player_option_subtitle_show_furigana": "Show readings in brackets as furigana above kanji",
     "player_subtitles_transcript_empty": "Transcript is empty.",
     "player_prepare_export": "Preparing card...",
     "player_change_player_orientation": "Change Player Orientation",
