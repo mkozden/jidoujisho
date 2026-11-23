@@ -11,6 +11,7 @@ class SubtitleOptions {
     required this.subtitleOutlineWidth,
     required this.subtitleBackgroundBlurRadius,
     required this.alwaysAboveBottomBar,
+    required this.showFurigana,
   });
 
   /// Audio allowance, used for audio export, in milliseconds.
@@ -39,4 +40,8 @@ class SubtitleOptions {
 
   /// Whether or not the subtitle should always be above the bottom bar.
   bool alwaysAboveBottomBar;
+
+  /// Whether readings written in brackets after kanji, as in 漢字(かんじ),
+  /// are shown above the kanji. They are left out of the text either way.
+  bool showFurigana;
 }

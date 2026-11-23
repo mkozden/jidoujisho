@@ -3282,6 +3282,8 @@ class AppModel with ChangeNotifier {
         _preferences.get('subtitle_background_blur_radius', defaultValue: 0.0);
     bool alwaysAboveBottomBar =
         _preferences.get('subtitle_above_bar', defaultValue: false);
+    bool showFurigana =
+        _preferences.get('subtitle_show_furigana', defaultValue: true);
 
     return SubtitleOptions(
       audioAllowance: audioAllowance,
@@ -3293,6 +3295,7 @@ class AppModel with ChangeNotifier {
       regexFilter: regexFilter,
       subtitleOutlineWidth: subtitleOutlineWidth,
       alwaysAboveBottomBar: alwaysAboveBottomBar,
+      showFurigana: showFurigana,
     );
   }
 
@@ -3307,6 +3310,7 @@ class AppModel with ChangeNotifier {
     _preferences.put(
         'subtitle_background_opacity', options.subtitleBackgroundOpacity);
     _preferences.put('subtitle_outline_width', options.subtitleOutlineWidth);
+    _preferences.put('subtitle_show_furigana', options.showFurigana);
     _preferences.put('subtitle_background_blur_radius',
         options.subtitleBackgroundBlurRadius);
     _preferences.put('subtitle_above_bar', options.alwaysAboveBottomBar);

@@ -1,9 +1,9 @@
 /// Generated file. Do not edit.
 ///
 /// Locales: 1
-/// Strings: 416
+/// Strings: 417
 ///
-/// Built on 2026-10-29 at 14:05 UTC
+/// Built on 2026-11-23 at 15:39 UTC
 
 // coverage:ignore-file
 // ignore_for_file: type=lint
@@ -389,6 +389,7 @@ class _StringsEn implements BaseTranslations<AppLocale, _StringsEn> {
 	String get player_option_subtitle_background_blur_radius => 'Subtitle background blur radius';
 	String get player_option_outline_width => 'Subtitle outline width';
 	String get player_option_subtitle_always_above_bottom_bar => 'Always show subtitle above bottom bar area';
+	String get player_option_subtitle_show_furigana => 'Show readings in brackets as furigana above kanji';
 	String get player_subtitles_transcript_empty => 'Transcript is empty.';
 	String get player_prepare_export => 'Preparing card...';
 	String get player_change_player_orientation => 'Change Player Orientation';
@@ -837,6 +838,7 @@ extension on _StringsEn {
 			case 'player_option_subtitle_background_blur_radius': return 'Subtitle background blur radius';
 			case 'player_option_outline_width': return 'Subtitle outline width';
 			case 'player_option_subtitle_always_above_bottom_bar': return 'Always show subtitle above bottom bar area';
+			case 'player_option_subtitle_show_furigana': return 'Show readings in brackets as furigana above kanji';
 			case 'player_subtitles_transcript_empty': return 'Transcript is empty.';
 			case 'player_prepare_export': return 'Preparing card...';
 			case 'player_change_player_orientation': return 'Change Player Orientation';

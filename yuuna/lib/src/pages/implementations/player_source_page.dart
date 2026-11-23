@@ -98,12 +98,18 @@ class _PlayerSourcePageState extends BaseSourcePageState<PlayerSourcePage>
   @override
   Future<void> onSourcePagePop() async {
     if (_playerInitialised) {
+      updateHistory(force: true);
       await _playerController.stop();
     }
   }
 
   @override
   void dispose() async {
+    _disposed = true;
+    if (_extractingEmbeddedSubtitles) {
+      SubtitleUtils.cancelExtraction();
+    }
+
     _playPauseSubscription?.cancel();
     _seekSubscription?.cancel();
     _rewindSubscription?.cancel();
@@ -157,7 +163,7 @@ class _PlayerSourcePageState extends BaseSourcePageState<PlayerSourcePage>
               _currentSubtitle.value != null) {
             appModel.audioHandler?.mediaItem.add(
               appModel.audioHandler?.mediaItem.value?.copyWith.call(
-                artist: _currentSubtitle.value?.data,
+                artist: cleanSubtitle(_currentSubtitle.value?.data),
               ),
             );
           }
@@ -179,6 +185,9 @@ class _PlayerSourcePageState extends BaseSourcePageState<PlayerSourcePage>
       case AppLifecycleState.detached:
       case AppLifecycleState.hidden:
         _lifecycleActive = false;
+        if (_playerInitialised) {
+          updateHistory(force: true);
+        }
         if (!appModel.playerBackgroundPlay) {
           _session.setActive(false);
         }
@@ -226,6 +235,21 @@ class _PlayerSourcePageState extends BaseSourcePageState<PlayerSourcePage>
 
   Duration? _bufferingDuration;
 
+  /// Whether [initialisePlayer] has started.
+  bool _playerInitialising = false;
+
+  /// Whether this page has been disposed, which stops subtitle extraction.
+  bool _disposed = false;
+
+  /// Whether FFmpeg is extracting the subtitles of the video.
+  bool _extractingEmbeddedSubtitles = false;
+
+  /// Whether an embedded track has been picked as the default subtitle.
+  bool _embeddedDefaultChosen = false;
+
+  /// When the position was last saved to history.
+  DateTime _lastHistoryUpdate = DateTime.fromMillisecondsSinceEpoch(0);
+
   PlayerMediaSource get source => widget.source as PlayerMediaSource;
 
   /// Executed on dictionary dismiss.
@@ -241,11 +265,13 @@ class _PlayerSourcePageState extends BaseSourcePageState<PlayerSourcePage>
 
   /// This prepares the player for use and sets a lot of initial variables.
   void initialisePlayer() async {
-    if (_playerInitialised) {
+    // This is called from build, which can run again while the awaits below
+    // are pending. Without this guard every rebuild would start another
+    // player for the same file.
+    if (_playerInitialised || _playerInitialising) {
       return;
     }
-
-    await Future.delayed(const Duration(seconds: 1), () {});
+    _playerInitialising = true;
 
     appModel.currentMediaPauseStream.listen((event) {
       dialogSmartPause();
@@ -556,9 +582,13 @@ class _PlayerSourcePageState extends BaseSourcePageState<PlayerSourcePage>
         );
       }
 
+      bool wasPlaying = _playingNotifier.value;
       _positionNotifier.value = _playerController.value.position;
       _durationNotifier.value = _playerController.value.duration;
       _playingNotifier.value = _playerController.value.isPlaying;
+      if (wasPlaying && !_playingNotifier.value) {
+        updateHistory(force: true);
+      }
       _endedNotifier.value = _playerController.value.isEnded;
 
       if (_playerController.value.aspectRatio != _lastAspectRatio) {
@@ -583,11 +613,7 @@ class _PlayerSourcePageState extends BaseSourcePageState<PlayerSourcePage>
 
       Subtitle? newSubtitle = _subtitleItem.controller
           .durationSearch(_positionNotifier.value + subtitleDelay);
-      String sentence = _currentSubtitle.value?.data ?? '';
-      String regex = _subtitleOptionsNotifier.value.regexFilter;
-      if (regex.isNotEmpty) {
-        sentence = sentence.replaceAll(RegExp(regex), '');
-      }
+      String sentence = cleanSubtitle(_currentSubtitle.value?.data);
 
       if (!_transcriptOpenNotifier.value &&
           widget.source.currentSentence.text != sentence) {
@@ -649,7 +675,7 @@ class _PlayerSourcePageState extends BaseSourcePageState<PlayerSourcePage>
             !_lifecycleActive) {
           appModel.audioHandler?.mediaItem.add(
             appModel.audioHandler?.mediaItem.value?.copyWith.call(
-              artist: _currentSubtitle.value?.data,
+              artist: cleanSubtitle(_currentSubtitle.value?.data),
             ),
           );
         }
@@ -737,55 +763,69 @@ class _PlayerSourcePageState extends BaseSourcePageState<PlayerSourcePage>
 
   /// This prepares the subtitles included with the video for use.
   void initialiseEmbeddedSubtitles(VlcPlayerController controller) async {
-    if (controller.dataSourceType != DataSourceType.file) {
+    if (controller.dataSourceType != DataSourceType.file || _disposed) {
       return;
     }
     appModel.isProcessingEmbeddedSubtitles = true;
+    _extractingEmbeddedSubtitles = true;
 
-    await SubtitleUtils.targetSubtitleFromVideo(
-      file: File(controller.dataSource),
-      language: appModel.targetLanguage,
-      onItemComplete: (item) async {
-        _subtitleItems.add(item);
+    try {
+      await SubtitleUtils.subtitlesFromVideo(
+        file: File(controller.dataSource),
+        language: appModel.targetLanguage,
+        isCancelled: () => _disposed,
+        onItemComplete: (item) async {
+          if (_disposed) {
+            return;
+          }
 
-        if (_subtitleItem.type == SubtitleItemType.noneSubtitle) {
+          _subtitleItems.add(item);
+          _subtitleItemNotifier.value = !_subtitleItemNotifier.value;
+
+          // Tracks arrive in quick succession, target language first. Only
+          // the first may become the default, or whichever track finished
+          // loading last would win.
+          if (_subtitleItem.type != SubtitleItemType.noneSubtitle ||
+              _embeddedDefaultChosen) {
+            return;
+          }
+          _embeddedDefaultChosen = true;
+
           await item.controller.initial();
-
+          if (_disposed ||
+              _subtitleItem.type != SubtitleItemType.noneSubtitle) {
+            return;
+          }
           _subtitleItem = item;
           _currentSubtitle.value = null;
           widget.source.clearCurrentSentence();
           refreshSubtitleWidget();
-        }
-        _subtitleItemNotifier.value = !_subtitleItemNotifier.value;
-      },
-    );
-
-    await Future.delayed(const Duration(seconds: 2), () {});
-
-    int embeddedTrackCount = await _playerController.getSpuTracksCount() ?? 0;
-
-    await SubtitleUtils.subtitlesFromVideo(
-      file: File(controller.dataSource),
-      embeddedTrackCount: embeddedTrackCount,
-      onItemComplete: (item) async {
-        _subtitleItems.add(item);
-        if (_subtitleItem.type == SubtitleItemType.noneSubtitle) {
-          await item.controller.initial();
-          _subtitleItem = item;
-          _currentSubtitle.value = null;
-          widget.source.clearCurrentSentence();
-          refreshSubtitleWidget();
-        }
-        _subtitleItemNotifier.value = !_subtitleItemNotifier.value;
-      },
-    );
-
-    appModel.isProcessingEmbeddedSubtitles = false;
+        },
+      );
+    } finally {
+      _extractingEmbeddedSubtitles = false;
+      appModel.isProcessingEmbeddedSubtitles = false;
+    }
   }
 
   /// This updates the media item to its new position and duration and also
   /// persists the change in media history.
-  void updateHistory() async {
+  /// Unless [force] is set, this runs at most every few seconds, as the
+  /// player reports its position many times a second and every update is a
+  /// database write on the UI thread.
+  void updateHistory({bool force = false}) async {
+    if (_durationNotifier.value == Duration.zero ||
+        _positionNotifier.value == Duration.zero) {
+      return;
+    }
+
+    DateTime now = DateTime.now();
+    if (!force &&
+        now.difference(_lastHistoryUpdate) < const Duration(seconds: 5)) {
+      return;
+    }
+    _lastHistoryUpdate = now;
+
     if (source is PlayerNetworkStreamSource) {
       if (_positionNotifier.value.inMilliseconds != 0) {
         ReceiveIntent.setResult(
@@ -1057,7 +1097,7 @@ class _PlayerSourcePageState extends BaseSourcePageState<PlayerSourcePage>
       (widget.source as PlayerMediaSource).clearTranscriptSubtitle();
       widget.source.setCurrentSentence(
         selection: JidoujishoTextSelection(
-          text: _currentSubtitle.value?.data ?? '',
+          text: cleanSubtitle(_currentSubtitle.value?.data),
         ),
       );
       _transcriptOpenNotifier.value = false;
@@ -1575,7 +1615,7 @@ class _PlayerSourcePageState extends BaseSourcePageState<PlayerSourcePage>
             widget.source.setShouldGenerateAudio(value: true);
             widget.source.setCurrentSentence(
               selection: JidoujishoTextSelection(
-                text: _currentSubtitle.value?.data ?? '',
+                text: cleanSubtitle(_currentSubtitle.value?.data),
               ),
             );
           }
@@ -1929,7 +1969,10 @@ class _PlayerSourcePageState extends BaseSourcePageState<PlayerSourcePage>
           return '${t.player_option_subtitle} - ${t.player_option_subtitle_external}';
         }
       case SubtitleItemType.embeddedSubtitle:
-        if (item.index != null) {
+        if (item.metadata != null) {
+          return '${t.player_option_subtitle} - ${item.metadata}';
+        } else if (item.index != null &&
+            item.index! < embeddedTracks.length) {
           return '${t.player_option_subtitle} - ${embeddedTracks.values.toList()[item.index!]}';
         } else {
           return '${t.player_option_subtitle} - ${t.default_option}';
@@ -2114,7 +2157,7 @@ class _PlayerSourcePageState extends BaseSourcePageState<PlayerSourcePage>
         label: t.player_option_share_subtitle,
         icon: Icons.share,
         action: () async {
-          await Share.share(getNearestSubtitle()?.data ?? '');
+          await Share.share(cleanSubtitle(getNearestSubtitle()?.data));
         },
       ),
       JidoujishoBottomSheetOption(
@@ -2204,20 +2247,38 @@ class _PlayerSourcePageState extends BaseSourcePageState<PlayerSourcePage>
           return const SizedBox.shrink();
         }
 
-        String subtitleText = currentSubtitle.data;
-
-        String regex = _subtitleOptionsNotifier.value.regexFilter;
-        if (regex.isNotEmpty) {
-          subtitleText = subtitleText.replaceAll(RegExp(regex), '');
-        }
-
-        return tapToSelectSubtitle(subtitleText);
+        return tapToSelectSubtitle(parseSubtitle(currentSubtitle.data));
       },
     );
   }
 
+  String? _parsedSubtitleRaw;
+  String? _parsedSubtitleRegex;
+  RubySubtitle _parsedSubtitle = const RubySubtitle(text: '', rubies: []);
+
+  /// Takes the readings in brackets out of a subtitle and applies the regex
+  /// filter. The last result is kept, as the player asks for the current
+  /// subtitle many times a second.
+  RubySubtitle parseSubtitle(String raw) {
+    String regex = _subtitleOptionsNotifier.value.regexFilter;
+    if (raw != _parsedSubtitleRaw || regex != _parsedSubtitleRegex) {
+      _parsedSubtitle = RubySubtitle.parse(raw, regexFilter: regex);
+      _parsedSubtitleRaw = raw;
+      _parsedSubtitleRegex = regex;
+    }
+    return _parsedSubtitle;
+  }
+
+  /// The text of a subtitle as it is looked up, exported and shared.
+  String cleanSubtitle(String? raw) => parseSubtitle(raw ?? '').text;
+
   /// This renders the subtitle with a [SelectableText] widget.
-  Widget tapToSelectSubtitle(String subtitleText) {
+  Widget tapToSelectSubtitle(RubySubtitle subtitle) {
+    String subtitleText = subtitle.text;
+    List<SubtitleRuby> rubies = _subtitleOptionsNotifier.value.showFurigana
+        ? subtitle.rubies
+        : const [];
+
     double blurRadius =
         _subtitleOptionsNotifier.value.subtitleBackgroundBlurRadius;
     return ClipRRect(
@@ -2233,45 +2294,211 @@ class _PlayerSourcePageState extends BaseSourcePageState<PlayerSourcePage>
             left: Spacing.of(context).spaces.small,
             right: Spacing.of(context).spaces.small * 0.4,
           ),
-          child: Stack(
-            alignment: Alignment.bottomCenter,
-            children: <Widget>[
-              JidoujishoSelectableText.rich(
-                TextSpan(children: getSubtitleOutlineSpans(subtitleText)),
-                textAlign: TextAlign.center,
-                contextMenuBuilder: (_, __) {
-                  return const SizedBox.shrink();
-                },
-                enableInteractiveSelection: false,
-              ),
-              JidoujishoSelectableText.rich(
-                TextSpan(children: getSubtitleSpans(subtitleText)),
-                textAlign: TextAlign.center,
-                controller: _selectableTextController,
-                focusNode: _dragToSelectFocusNode,
-                selectionControls: EmptyTextSelectionControls(),
-                contextMenuBuilder: (_, __) {
-                  return const SizedBox.shrink();
-                },
-              ),
-            ],
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              _FuriganaLayout? furigana;
+              if (rubies.isNotEmpty &&
+                  subtitleText.isNotEmpty &&
+                  constraints.maxWidth.isFinite) {
+                furigana = layoutFurigana(
+                  text: subtitleText,
+                  rubies: rubies,
+                  maxWidth: constraints.maxWidth,
+                );
+              }
+
+              TextStyle textStyle =
+                  subtitleTextStyle.copyWith(height: furigana?.lineHeight);
+              TextStyle outlineStyle =
+                  subtitleOutlineStyle.copyWith(height: furigana?.lineHeight);
+
+              return Stack(
+                alignment: Alignment.bottomCenter,
+                clipBehavior: Clip.none,
+                children: <Widget>[
+                  JidoujishoSelectableText.rich(
+                    TextSpan(
+                      children: getSubtitleOutlineSpans(
+                        subtitleText,
+                        style: outlineStyle,
+                      ),
+                    ),
+                    textAlign: TextAlign.center,
+                    contextMenuBuilder: (_, __) {
+                      return const SizedBox.shrink();
+                    },
+                    enableInteractiveSelection: false,
+                  ),
+                  JidoujishoSelectableText.rich(
+                    TextSpan(
+                      children: getSubtitleSpans(
+                        subtitleText,
+                        style: textStyle,
+                      ),
+                    ),
+                    textAlign: TextAlign.center,
+                    controller: _selectableTextController,
+                    focusNode: _dragToSelectFocusNode,
+                    selectionControls: EmptyTextSelectionControls(),
+                    contextMenuBuilder: (_, __) {
+                      return const SizedBox.shrink();
+                    },
+                  ),
+                  ...?furigana?.widgets,
+                ],
+              );
+            },
           ),
         ),
       ),
     );
   }
 
+  /// Size of furigana relative to the subtitle text.
+  static const double _furiganaScale = 0.5;
+
+  /// Lays out the subtitle the way [JidoujishoSelectableText] does, to find
+  /// where each reading goes and how tall the lines must be to fit them.
+  _FuriganaLayout layoutFurigana({
+    required String text,
+    required List<SubtitleRuby> rubies,
+    required double maxWidth,
+  }) {
+    double textScaleFactor = MediaQuery.textScaleFactorOf(context);
+    TextStyle baseStyle = subtitleTextStyle;
+    double fontSize = baseStyle.fontSize ?? 14;
+    double rubyFontSize = fontSize * _furiganaScale;
+    double rubyHeight = rubyFontSize * textScaleFactor * 1.2;
+
+    // The selectable text leaves room for its caret, one pixel of gap plus
+    // the cursor width of two, when it lays out its text.
+    double textWidth = max(0, maxWidth - 3);
+
+    TextPainter painter = TextPainter(
+      text: TextSpan(text: text, style: baseStyle),
+      textAlign: TextAlign.center,
+      textDirection: TextDirection.ltr,
+      textScaleFactor: textScaleFactor,
+      strutStyle: const StrutStyle(),
+    )..layout(maxWidth: textWidth);
+
+    List<LineMetrics> lines = painter.computeLineMetrics();
+    if (lines.isEmpty || lines.first.ascent <= 0) {
+      return _FuriganaLayout(lineHeight: null, widgets: const []);
+    }
+
+    // Flutter shares the extra height of a taller line between the space
+    // above and below the text in proportion to the font's ascent and
+    // descent. Make the space above each line fit the furigana.
+    double ascent = lines.first.ascent;
+    double natural = ascent + lines.first.descent;
+    double extra = rubyHeight * natural / ascent;
+    double lineHeight = (natural + extra) / (fontSize * textScaleFactor);
+
+    painter.text = TextSpan(
+      text: text,
+      style: baseStyle.copyWith(height: lineHeight),
+    );
+    painter.layout(maxWidth: textWidth);
+
+    List<Widget> widgets = [];
+    for (SubtitleRuby ruby in rubies) {
+      if (ruby.end > text.length) {
+        continue;
+      }
+
+      List<TextBox> boxes = painter.getBoxesForSelection(
+        TextSelection(baseOffset: ruby.start, extentOffset: ruby.end),
+      );
+      if (boxes.isEmpty) {
+        continue;
+      }
+
+      // A reading over text that wraps onto the next line goes over the
+      // part on the first line.
+      double top = boxes.first.top;
+      double left = boxes.first.left;
+      double right = boxes.first.right;
+      for (TextBox box in boxes.skip(1)) {
+        if ((box.top - top).abs() < 1) {
+          left = min(left, box.left);
+          right = max(right, box.right);
+        }
+      }
+
+      TextPainter readingPainter = TextPainter(
+        text: TextSpan(
+          text: ruby.reading,
+          style: baseStyle.copyWith(fontSize: rubyFontSize),
+        ),
+        textDirection: TextDirection.ltr,
+        textScaleFactor: textScaleFactor,
+        maxLines: 1,
+      )..layout();
+      double width = max(readingPainter.width, right - left) + 2;
+      double centre = (left + right) / 2;
+
+      widgets.add(
+        Positioned(
+          left: centre - width / 2,
+          top: top - rubyHeight,
+          width: width,
+          height: rubyHeight,
+          child: IgnorePointer(
+            child: buildFurigana(ruby.reading, rubyFontSize),
+          ),
+        ),
+      );
+    }
+
+    return _FuriganaLayout(lineHeight: lineHeight, widgets: widgets);
+  }
+
+  /// A reading drawn above kanji, outlined like the subtitle.
+  Widget buildFurigana(String reading, double fontSize) {
+    Paint outlinePaint = subtitlePaintStyle
+      ..strokeWidth =
+          _subtitleOptionsNotifier.value.subtitleOutlineWidth * _furiganaScale;
+
+    return Stack(
+      alignment: Alignment.center,
+      children: [
+        Text(
+          reading,
+          maxLines: 1,
+          softWrap: false,
+          overflow: TextOverflow.visible,
+          textAlign: TextAlign.center,
+          style: subtitleOutlineStyle.copyWith(
+            fontSize: fontSize,
+            height: 1.2,
+            foreground: outlinePaint,
+          ),
+        ),
+        Text(
+          reading,
+          maxLines: 1,
+          softWrap: false,
+          overflow: TextOverflow.visible,
+          textAlign: TextAlign.center,
+          style: subtitleTextStyle.copyWith(fontSize: fontSize, height: 1.2),
+        ),
+      ],
+    );
+  }
+
   /// This renders the subtitle and assigns each character an action
   /// according to its index.
-  List<InlineSpan> getSubtitleSpans(String text) {
+  List<InlineSpan> getSubtitleSpans(String text, {TextStyle? style}) {
     List<InlineSpan> spans = [];
+    TextStyle spanStyle = style ?? subtitleTextStyle;
 
     text.runes.forEachIndexed((index, rune) {
       String character = String.fromCharCode(rune);
       spans.add(
         TextSpan(
           text: character,
-          style: subtitleTextStyle,
+          style: spanStyle,
           recognizer: TapGestureRecognizer()
             ..onTapDown = (details) async {
               onTapDown(
@@ -2322,14 +2549,18 @@ class _PlayerSourcePageState extends BaseSourcePageState<PlayerSourcePage>
   }
 
   /// Used for subtitle outline design.
-  List<InlineSpan> getSubtitleOutlineSpans(String subtitleText) {
+  List<InlineSpan> getSubtitleOutlineSpans(
+    String subtitleText, {
+    TextStyle? style,
+  }) {
     List<InlineSpan> spans = [];
+    TextStyle spanStyle = style ?? subtitleOutlineStyle;
 
     subtitleText.runes.forEachIndexed((index, rune) {
       String character = String.fromCharCode(rune);
       spans.add(TextSpan(
         text: character,
-        style: subtitleOutlineStyle,
+        style: spanStyle,
       ));
     });
 
@@ -2429,12 +2660,7 @@ class _PlayerSourcePageState extends BaseSourcePageState<PlayerSourcePage>
   Future<void> openCardCreator(List<Subtitle> subtitles) async {
     StringBuffer buffer = StringBuffer();
     for (Subtitle subtitle in subtitles) {
-      String subtitleText = subtitle.data;
-      String regex = _subtitleOptionsNotifier.value.regexFilter;
-      if (regex.isNotEmpty) {
-        subtitleText = subtitleText.replaceAll(RegExp(regex), '');
-      }
-      buffer.writeln(subtitleText);
+      buffer.writeln(cleanSubtitle(subtitle.data));
     }
 
     String sentence = buffer.toString().trim();
@@ -2468,11 +2694,7 @@ class _PlayerSourcePageState extends BaseSourcePageState<PlayerSourcePage>
     _currentSubtitle.value = null;
     _currentSubtitle.value = holder;
     if (holder != null) {
-      String sentence = _currentSubtitle.value?.data ?? '';
-      String regex = _subtitleOptionsNotifier.value.regexFilter;
-      if (regex.isNotEmpty) {
-        sentence = sentence.replaceAll(RegExp(regex), '');
-      }
+      String sentence = cleanSubtitle(_currentSubtitle.value?.data);
 
       if (!_transcriptOpenNotifier.value) {
         source.setCurrentSentence(
@@ -2526,8 +2748,10 @@ class _PlayerSourcePageState extends BaseSourcePageState<PlayerSourcePage>
       _menuHideTimer?.cancel();
       _isMenuHidden.value = false;
 
+      // The audio session stays active while paused. Giving it up lets
+      // Bluetooth headphones close their audio link, which clips the start
+      // of the audio when playback resumes.
       await _playerController.pause();
-      _session.setActive(false);
     } else {
       if (!_playerController.value.isInitialized) {
         _playerController.initialize().then((_) async {
@@ -2612,8 +2836,8 @@ class _PlayerSourcePageState extends BaseSourcePageState<PlayerSourcePage>
     if (_playerController.value.isPlaying) {
       _menuHideTimer?.cancel();
       _dialogSmartPaused = true;
+      // See playPause for why the audio session stays active.
       await _playerController.pause();
-      _session.setActive(false);
     }
   }
 
@@ -2697,4 +2921,18 @@ class _PlayerSourcePageState extends BaseSourcePageState<PlayerSourcePage>
     widget.source.clearCurrentSentence();
     refreshSubtitleWidget();
   }
+}
+
+/// Where the furigana of a subtitle go, and the line height that fits them.
+class _FuriganaLayout {
+  _FuriganaLayout({
+    required this.lineHeight,
+    required this.widgets,
+  });
+
+  /// Line height of the subtitle, as a multiple of its font size.
+  final double? lineHeight;
+
+  /// The furigana, positioned over the subtitle text.
+  final List<Widget> widgets;
 }

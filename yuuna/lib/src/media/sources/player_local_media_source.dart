@@ -183,20 +183,28 @@ class PlayerLocalMediaSource extends PlayerMediaSource {
         title: path.basenameWithoutExtension(filePath),
       );
 
-      String thumbnailPath = appModel.getThumbnailFile().path;
-      File thumbnailFile = appModel.getThumbnailFile();
+      // Make the thumbnail in the background so that the video does not wait
+      // for it. FfmpegQueue keeps it from running at the same time as the
+      // player's own FFmpeg work.
+      MediaItem newItem = item;
+      unawaited(
+        FfmpegQueue.run(() async {
+          String thumbnailPath = appModel.getThumbnailFile().path;
+          File thumbnailFile = appModel.getThumbnailFile();
 
-      if (thumbnailFile.existsSync()) {
-        thumbnailFile.deleteSync();
-      }
-      thumbnailFile.createSync(recursive: true);
+          if (thumbnailFile.existsSync()) {
+            thumbnailFile.deleteSync();
+          }
+          thumbnailFile.createSync(recursive: true);
 
-      await generateThumbnail(filePath, thumbnailPath);
-      await setOverrideThumbnailFromMediaItem(
-        appModel: appModel,
-        item: item,
-        file: thumbnailFile,
-        clearOverrideImage: false,
+          await generateThumbnail(filePath, thumbnailPath);
+          await setOverrideThumbnailFromMediaItem(
+            appModel: appModel,
+            item: newItem,
+            file: thumbnailFile,
+            clearOverrideImage: false,
+          );
+        }).catchError((_) {}),
       );
     }
 
@@ -300,12 +308,15 @@ class PlayerLocalMediaSource extends PlayerMediaSource {
     }
 
     List<String> videoParams = [
-      VlcVideoOptions.dropLateFrames(false),
-      VlcVideoOptions.skipFrames(false),
+      VlcVideoOptions.dropLateFrames(true),
+      VlcVideoOptions.skipFrames(true),
     ];
     List<String> advancedParams = [
       '--start-time=$startTime',
       VlcAdvancedOptions.networkCaching(10000),
+      // The player finds and extracts subtitles itself; VLC scanning the
+      // folder for them only slows down opening the file.
+      '--no-sub-autodetect-file',
     ];
     List<String> soutParams = [
       '--start-time=$startTime',

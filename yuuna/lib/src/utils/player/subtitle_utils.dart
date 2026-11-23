@@ -1,10 +1,13 @@
 import 'dart:io';
 
 import 'package:flutter_ffmpeg/flutter_ffmpeg.dart';
+import 'package:flutter_ffmpeg/media_information.dart';
+import 'package:flutter_ffmpeg/stream_information.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:subtitle/subtitle.dart';
 import 'package:path/path.dart' as path;
 import 'package:yuuna/language.dart';
+import 'package:yuuna/src/utils/player/ffmpeg_queue.dart';
 
 /// Differentiates different types of [SubtitleItem].
 enum SubtitleItemType {
@@ -46,6 +49,50 @@ class SubtitleItem {
 
   /// Used to possibly identify the order of a subtitle.
   int? index;
+}
+
+/// A subtitle stream inside a video file.
+class EmbeddedSubtitleStream {
+  /// Initialise a stream.
+  EmbeddedSubtitleStream({
+    required this.index,
+    required this.codec,
+    this.language,
+    this.title,
+  });
+
+  /// Codecs of subtitles stored as images, which cannot become text.
+  static const Set<String> bitmapCodecs = {
+    'hdmv_pgs_subtitle',
+    'dvd_subtitle',
+    'dvb_subtitle',
+    'dvb_teletext',
+    'xsub',
+  };
+
+  /// Position among the subtitle streams of the file, as in `-map 0:s:index`.
+  final int index;
+
+  /// FFmpeg codec name, such as `ass` or `subrip`.
+  final String codec;
+
+  /// Language tag of the stream, such as `jpn`.
+  final String? language;
+
+  /// Title tag of the stream, such as `Signs & Songs`.
+  final String? title;
+
+  /// Whether this stream holds text that can be converted to SRT.
+  bool get isText => codec.isNotEmpty && !bitmapCodecs.contains(codec);
+
+  /// A readable name for the stream, or null if it has no tags.
+  String? get label {
+    List<String> parts = [
+      if (language != null) language!,
+      if (title != null) title!,
+    ];
+    return parts.isEmpty ? null : parts.join(' - ');
+  }
 }
 
 /// A class for calling subtitle utility functions.
@@ -114,100 +161,172 @@ class SubtitleUtils {
     );
   }
 
-  /// Gets a list of subtitles from a video file.
-  static Future<SubtitleItem?> targetSubtitleFromVideo({
-    required File file,
-    required Language language,
-    required Function(SubtitleItem) onItemComplete,
-  }) async {
-    Directory appDocDir = await getApplicationDocumentsDirectory();
-    Directory subsDir = Directory('${appDocDir.path}/targetSubtitles');
-    if (!subsDir.existsSync()) {
-      subsDir.createSync(recursive: true);
+  /// Lists the subtitle streams of a video file.
+  static Future<List<EmbeddedSubtitleStream>> probeSubtitleStreams(
+      File file) async {
+    List<EmbeddedSubtitleStream> streams = [];
+
+    MediaInformation information;
+    try {
+      information = await FlutterFFprobe().getMediaInformation(file.path);
+    } catch (_) {
+      return streams;
     }
 
-    String inputPath = file.path;
+    int subtitleIndex = 0;
+    for (StreamInformation stream in information.getStreams() ?? []) {
+      Map<dynamic, dynamic> properties = stream.getAllProperties();
+      if (properties['codec_type'] != 'subtitle') {
+        continue;
+      }
 
-    String threeLanguageCode = language.threeLetterCode;
-    String outputPath = '${subsDir.path}/extractSrt.srt';
-    String command =
-        '-loglevel quiet -i "$inputPath" -map 0:m:language:$threeLanguageCode -map -0:a -map -0:v "$outputPath"';
+      Map<dynamic, dynamic> tags = properties['tags'] is Map
+          ? properties['tags'] as Map<dynamic, dynamic>
+          : {};
+      String? tag(String key) {
+        for (MapEntry<dynamic, dynamic> entry in tags.entries) {
+          if (entry.key.toString().toLowerCase() == key) {
+            String value = entry.value.toString().trim();
+            return value.isEmpty ? null : value;
+          }
+        }
+        return null;
+      }
 
-    File outputFile = File(outputPath);
-
-    if (outputFile.existsSync()) {
-      outputFile.deleteSync();
-    }
-
-    final FlutterFFmpeg flutterFFmpeg = FlutterFFmpeg();
-
-    await flutterFFmpeg.execute(command);
-
-    await Future.delayed(const Duration(seconds: 1));
-
-    if (outputFile.existsSync()) {
-      SubtitleItem item = await subtitlesFromFile(
-        file: outputFile,
-        type: SubtitleItemType.embeddedSubtitle,
+      streams.add(
+        EmbeddedSubtitleStream(
+          index: subtitleIndex,
+          codec: properties['codec_name']?.toString() ?? '',
+          language: tag('language'),
+          title: tag('title'),
+        ),
       );
-      onItemComplete(item);
-      return item;
-    } else {
-      return null;
+      subtitleIndex++;
     }
+
+    return streams;
   }
 
-  /// Gets a list of subtitles from a video file.
+  /// Extracts the text subtitles of a video file. All of them are extracted
+  /// in a single FFmpeg run, which reads the file once instead of once per
+  /// track. Tracks in [language] are passed to [onItemComplete] first.
+  /// [isCancelled] is checked between steps so that a closed player stops
+  /// the work early.
   static Future<List<SubtitleItem>> subtitlesFromVideo({
     required File file,
-    required int embeddedTrackCount,
+    required Language language,
+    required bool Function() isCancelled,
     required Function(SubtitleItem) onItemComplete,
-  }) async {
-    List<File> outputFiles = [];
-    List<SubtitleItem> items = [];
-
-    Directory appDocDir = await getApplicationDocumentsDirectory();
-    Directory subsDir = Directory('${appDocDir.path}/subtitles');
-    if (!subsDir.existsSync()) {
-      subsDir.createSync(recursive: true);
-    }
-
-    String inputPath = file.path;
-
-    for (int i = 0; i < embeddedTrackCount - 1; i++) {
-      String outputPath = '${subsDir.path}/extractSrt$i.srt';
-      String command =
-          '-loglevel quiet -i "$inputPath" -map 0:s:$i "$outputPath"';
-
-      File outputFile = File(outputPath);
-
-      if (outputFile.existsSync()) {
-        outputFile.deleteSync();
+  }) {
+    return FfmpegQueue.run(() async {
+      List<SubtitleItem> items = [];
+      if (isCancelled()) {
+        return items;
       }
+
+      List<EmbeddedSubtitleStream> streams = (await probeSubtitleStreams(file))
+          .where((stream) => stream.isText)
+          .toList();
+      if (streams.isEmpty || isCancelled()) {
+        return items;
+      }
+
+      Directory appDocDir = await getApplicationDocumentsDirectory();
+      Directory subsDir = Directory('${appDocDir.path}/subtitles');
+      if (!subsDir.existsSync()) {
+        subsDir.createSync(recursive: true);
+      }
+
+      Map<int, File> outputFiles = {};
+      for (EmbeddedSubtitleStream stream in streams) {
+        File outputFile = File('${subsDir.path}/extractSrt${stream.index}.srt');
+        if (outputFile.existsSync()) {
+          outputFile.deleteSync();
+        }
+        outputFiles[stream.index] = outputFile;
+      }
+
+      List<String> mapStream(EmbeddedSubtitleStream stream) => [
+            '-map',
+            '0:s:${stream.index}',
+            '-c:s',
+            'srt',
+            outputFiles[stream.index]!.path,
+          ];
 
       final FlutterFFmpeg flutterFFmpeg = FlutterFFmpeg();
-      final FlutterFFmpegConfig flutterFFmpegConfig = FlutterFFmpegConfig();
+      int returnCode = await flutterFFmpeg.executeWithArguments([
+        '-loglevel',
+        'error',
+        '-y',
+        '-i',
+        file.path,
+        for (EmbeddedSubtitleStream stream in streams) ...mapStream(stream),
+      ]);
 
-      await flutterFFmpeg.execute(command);
-      String output = await flutterFFmpegConfig.getLastCommandOutput();
-      if (output.contains("Stream map '0:s:$i' matches no streams.")) {
-        break;
+      if (returnCode != 0) {
+        // A single track that cannot be converted fails the whole run, so
+        // fall back to extracting the tracks one at a time.
+        for (EmbeddedSubtitleStream stream in streams) {
+          if (isCancelled()) {
+            return items;
+          }
+          File outputFile = outputFiles[stream.index]!;
+          if (outputFile.existsSync()) {
+            outputFile.deleteSync();
+          }
+          await flutterFFmpeg.executeWithArguments([
+            '-loglevel',
+            'error',
+            '-y',
+            '-i',
+            file.path,
+            ...mapStream(stream),
+          ]);
+        }
       }
 
-      await Future.delayed(const Duration(seconds: 1));
+      bool isTargetLanguage(EmbeddedSubtitleStream stream) {
+        String? streamLanguage = stream.language?.toLowerCase();
+        return streamLanguage != null &&
+            (streamLanguage == language.threeLetterCode.toLowerCase() ||
+                streamLanguage == language.languageCode.toLowerCase());
+      }
 
-      SubtitleItem item = await subtitlesFromFile(
-        file: outputFile,
-        type: SubtitleItemType.embeddedSubtitle,
-        index: i,
-      );
+      List<EmbeddedSubtitleStream> orderedStreams = [
+        ...streams.where(isTargetLanguage),
+        ...streams.where((stream) => !isTargetLanguage(stream)),
+      ];
 
-      onItemComplete(item);
-      outputFiles.add(outputFile);
-      items.add(item);
-    }
+      for (EmbeddedSubtitleStream stream in orderedStreams) {
+        if (isCancelled()) {
+          return items;
+        }
 
-    return items;
+        File outputFile = outputFiles[stream.index]!;
+        if (!outputFile.existsSync() || outputFile.lengthSync() == 0) {
+          continue;
+        }
+
+        SubtitleItem item = await subtitlesFromFile(
+          file: outputFile,
+          type: SubtitleItemType.embeddedSubtitle,
+          metadata: stream.label,
+          index: stream.index,
+        );
+
+        onItemComplete(item);
+        items.add(item);
+      }
+
+      return items;
+    });
+  }
+
+  /// Cancels FFmpeg work that is running, such as subtitle extraction for a
+  /// player that has been closed.
+  static Future<void> cancelExtraction() {
+    return FlutterFFmpeg().cancel();
   }
 
   /// Converts ASS subtitles to SRT and returns the data.
