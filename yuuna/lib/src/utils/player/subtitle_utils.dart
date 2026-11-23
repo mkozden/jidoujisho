@@ -254,73 +254,108 @@ class SubtitleUtils {
             outputFiles[stream.index]!.path,
           ];
 
-      final FlutterFFmpeg flutterFFmpeg = FlutterFFmpeg();
-      int returnCode = await flutterFFmpeg.executeWithArguments([
-        '-loglevel',
-        'error',
-        '-y',
-        '-i',
-        file.path,
-        for (EmbeddedSubtitleStream stream in streams) ...mapStream(stream),
-      ]);
+      // FFmpeg's log lines and progress updates are each posted to the main
+      // thread. Over a full pass of a large video they crowd out the
+      // player's own messages, so they are turned off while extracting.
+      await _ffmpegConfig.disableStatistics();
+      await _ffmpegConfig.disableLogs();
 
-      if (returnCode != 0) {
-        // A single track that cannot be converted fails the whole run, so
-        // fall back to extracting the tracks one at a time.
-        for (EmbeddedSubtitleStream stream in streams) {
-          if (isCancelled()) {
-            return items;
-          }
-          File outputFile = outputFiles[stream.index]!;
-          if (outputFile.existsSync()) {
-            outputFile.deleteSync();
-          }
-          await flutterFFmpeg.executeWithArguments([
-            '-loglevel',
-            'error',
-            '-y',
-            '-i',
-            file.path,
-            ...mapStream(stream),
-          ]);
-        }
+      try {
+        return await _extract(
+          file: file,
+          language: language,
+          streams: streams,
+          outputFiles: outputFiles,
+          mapStream: mapStream,
+          isCancelled: isCancelled,
+          onItemComplete: onItemComplete,
+        );
+      } finally {
+        await _ffmpegConfig.enableLogs();
       }
+    });
+  }
 
-      bool isTargetLanguage(EmbeddedSubtitleStream stream) {
-        String? streamLanguage = stream.language?.toLowerCase();
-        return streamLanguage != null &&
-            (streamLanguage == language.threeLetterCode.toLowerCase() ||
-                streamLanguage == language.languageCode.toLowerCase());
-      }
+  /// Used to turn FFmpeg's logs and progress updates off and on. A single
+  /// instance, as each one adds another listener for FFmpeg's events.
+  static final FlutterFFmpegConfig _ffmpegConfig = FlutterFFmpegConfig();
 
-      List<EmbeddedSubtitleStream> orderedStreams = [
-        ...streams.where(isTargetLanguage),
-        ...streams.where((stream) => !isTargetLanguage(stream)),
-      ];
+  static Future<List<SubtitleItem>> _extract({
+    required File file,
+    required Language language,
+    required List<EmbeddedSubtitleStream> streams,
+    required Map<int, File> outputFiles,
+    required List<String> Function(EmbeddedSubtitleStream) mapStream,
+    required bool Function() isCancelled,
+    required Function(SubtitleItem) onItemComplete,
+  }) async {
+    List<SubtitleItem> items = [];
+    final FlutterFFmpeg flutterFFmpeg = FlutterFFmpeg();
+    int returnCode = await flutterFFmpeg.executeWithArguments([
+      '-loglevel',
+      'error',
+      '-y',
+      '-i',
+      file.path,
+      for (EmbeddedSubtitleStream stream in streams) ...mapStream(stream),
+    ]);
 
-      for (EmbeddedSubtitleStream stream in orderedStreams) {
+    if (returnCode != 0) {
+      // A single track that cannot be converted fails the whole run, so
+      // fall back to extracting the tracks one at a time.
+      for (EmbeddedSubtitleStream stream in streams) {
         if (isCancelled()) {
           return items;
         }
-
         File outputFile = outputFiles[stream.index]!;
-        if (!outputFile.existsSync() || outputFile.lengthSync() == 0) {
-          continue;
+        if (outputFile.existsSync()) {
+          outputFile.deleteSync();
         }
+        await flutterFFmpeg.executeWithArguments([
+          '-loglevel',
+          'error',
+          '-y',
+          '-i',
+          file.path,
+          ...mapStream(stream),
+        ]);
+      }
+    }
 
-        SubtitleItem item = await subtitlesFromFile(
-          file: outputFile,
-          type: SubtitleItemType.embeddedSubtitle,
-          metadata: stream.label,
-          index: stream.index,
-        );
+    bool isTargetLanguage(EmbeddedSubtitleStream stream) {
+      String? streamLanguage = stream.language?.toLowerCase();
+      return streamLanguage != null &&
+          (streamLanguage == language.threeLetterCode.toLowerCase() ||
+              streamLanguage == language.languageCode.toLowerCase());
+    }
 
-        onItemComplete(item);
-        items.add(item);
+    List<EmbeddedSubtitleStream> orderedStreams = [
+      ...streams.where(isTargetLanguage),
+      ...streams.where((stream) => !isTargetLanguage(stream)),
+    ];
+
+    for (EmbeddedSubtitleStream stream in orderedStreams) {
+      if (isCancelled()) {
+        return items;
       }
 
-      return items;
-    });
+      File outputFile = outputFiles[stream.index]!;
+      if (!outputFile.existsSync() || outputFile.lengthSync() == 0) {
+        continue;
+      }
+
+      SubtitleItem item = await subtitlesFromFile(
+        file: outputFile,
+        type: SubtitleItemType.embeddedSubtitle,
+        metadata: stream.label,
+        index: stream.index,
+      );
+
+      onItemComplete(item);
+      items.add(item);
+    }
+
+    return items;
   }
 
   /// Cancels FFmpeg work that is running, such as subtitle extraction for a
