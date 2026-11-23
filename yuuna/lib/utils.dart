@@ -22,6 +22,7 @@ export 'src/utils/converters/quick_actions_converter.dart';
 export 'src/utils/converters/enhancements_converter.dart';
 export 'src/utils/converters/media_item_converter.dart';
 
+export 'src/utils/player/ffmpeg_queue.dart';
 export 'src/utils/player/subtitle_utils.dart';
 export 'src/utils/player/player_payload.dart';
 export 'src/utils/player/blur_options.dart';
