@@ -37,6 +37,15 @@ to this fork too, except for the changes below.
   pure black-and-white theme without animations, an opaque dictionary pop-up with
   slightly larger text, and black-and-white themes for the ebook reader and the native
   Mokuro reader.
+- **Video player.**
+  - Readings written in brackets after kanji, as in `超(こ)える` or `PC(ピーシー)`, are
+    shown as furigana above the text and left out of lookups, so the whole word
+    (`超える`) is looked up and exported. A subtitle option turns the furigana off.
+  - Embedded subtitles load in one pass, so files with many languages are ready in
+    seconds. Tracks are named by language and title, and the target language track is
+    picked by default. Image subtitles (PGS, VobSub) are skipped.
+  - Videos open faster, and pausing, including for a dictionary lookup, no longer cuts
+    off the start of the audio on Bluetooth headphones.
 - **Fewer crashes.** When Android kills a WebView's renderer, for example under memory
   pressure on e-readers, the reader reloads on the page it showed instead of the whole
   app closing. AnkiDroid errors no longer close the app, and the AnkiDroid duplicate
