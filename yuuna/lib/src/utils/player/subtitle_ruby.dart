@@ -57,10 +57,10 @@ class RubySubtitle {
 
     // Code unit length of the text written so far.
     int length = 0;
-    // The kanji just before the current position, if any.
+    // The kanji, Latin letters or digits just before the current position.
     int? kanjiStart;
     int kanjiEnd = 0;
-    // Kana written right after those kanji.
+    // Kana written right after them.
     int okuriganaLength = 0;
 
     void write(int rune) {
@@ -108,7 +108,7 @@ class RubySubtitle {
       int before = length;
       write(rune);
 
-      if (_isKanji(rune)) {
+      if (_isBase(rune)) {
         if (kanjiStart == null || okuriganaLength > 0 || kanjiEnd != before) {
           kanjiStart = before;
         }
@@ -116,6 +116,8 @@ class RubySubtitle {
         okuriganaLength = 0;
       } else if (kanjiStart != null &&
           _isKana(rune) &&
+          rune != 0x20 &&
+          rune != 0x3000 &&
           okuriganaLength < _maxOkuriganaLength) {
         okuriganaLength++;
       } else {
@@ -209,6 +211,18 @@ class RubySubtitle {
       rune == 0x3005 ||
       rune == 0x3006 ||
       rune == 0x30F6;
+
+  /// Text a reading can be written over: kanji, and Latin letters and
+  /// digits, as in ＰＣ(ピーシー) or 3日(みっか), together with kanji
+  /// next to them.
+  static bool _isBase(int rune) =>
+      _isKanji(rune) ||
+      (rune >= 0x30 && rune <= 0x39) ||
+      (rune >= 0x41 && rune <= 0x5A) ||
+      (rune >= 0x61 && rune <= 0x7A) ||
+      (rune >= 0xFF10 && rune <= 0xFF19) ||
+      (rune >= 0xFF21 && rune <= 0xFF3A) ||
+      (rune >= 0xFF41 && rune <= 0xFF5A);
 
   /// Hiragana, katakana, the long vowel mark and the middle dot, as used in
   /// readings, and spaces between them.
