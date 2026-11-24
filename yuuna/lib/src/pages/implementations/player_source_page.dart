@@ -273,6 +273,12 @@ class _PlayerSourcePageState extends BaseSourcePageState<PlayerSourcePage>
     }
     _playerInitialising = true;
 
+    // Wait for the page transition to end before creating the player. The
+    // VLC view created during the transition loses contact with the
+    // controller: commands still reach VLC, but its events and replies stop,
+    // so the play icon, position, seeking and the transcript break.
+    await Future.delayed(const Duration(seconds: 1), () {});
+
     appModel.currentMediaPauseStream.listen((event) {
       dialogSmartPause();
     });
