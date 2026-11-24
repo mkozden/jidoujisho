@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter_ffmpeg/flutter_ffmpeg.dart';
@@ -257,8 +258,10 @@ class SubtitleUtils {
       // FFmpeg's log lines and progress updates are each posted to the main
       // thread. Over a full pass of a large video they crowd out the
       // player's own messages, so they are turned off while extracting.
-      await _ffmpegConfig.disableStatistics();
-      await _ffmpegConfig.disableLogs();
+      // The plugin never replies to these calls, so they must not be
+      // awaited; they still run before the FFmpeg command sent after them.
+      unawaited(_ffmpegConfig.disableStatistics());
+      unawaited(_ffmpegConfig.disableLogs());
 
       try {
         return await _extract(
@@ -271,7 +274,7 @@ class SubtitleUtils {
           onItemComplete: onItemComplete,
         );
       } finally {
-        await _ffmpegConfig.enableLogs();
+        unawaited(_ffmpegConfig.enableLogs());
       }
     });
   }
@@ -360,8 +363,9 @@ class SubtitleUtils {
 
   /// Cancels FFmpeg work that is running, such as subtitle extraction for a
   /// player that has been closed.
-  static Future<void> cancelExtraction() {
-    return FlutterFFmpeg().cancel();
+  /// The plugin never replies to this call, so it is not awaited.
+  static void cancelExtraction() {
+    unawaited(FlutterFFmpeg().cancel());
   }
 
   /// Converts ASS subtitles to SRT and returns the data.
